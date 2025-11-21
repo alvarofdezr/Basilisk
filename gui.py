@@ -1,12 +1,18 @@
-# gui.py (Versión 2.0 - Loop de Monitorización)
+# gui.py
 import customtkinter as ctk
 import threading
 import time
+import sys
+import os  # <--- Importante para crear carpetas
+
+# Imports del proyecto
 from pysentinel.core.database import DatabaseManager
 from pysentinel.modules.fim import FileIntegrityMonitor
-from pysentinel.modules.log_watcher import LogWatcher # <--- NUEVO IMPORT
-import sys
+from pysentinel.modules.log_watcher import LogWatcher
+from pysentinel.core.config import Config
+from pysentinel.utils.notifier import TelegramNotifier 
 
+# Configuración visual
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
@@ -18,7 +24,7 @@ class PySentinelApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        self.monitoring = False # Bandera para controlar el bucle
+        self.monitoring = False 
 
         # HEADER
         self.header_frame = ctk.CTkFrame(self)
@@ -33,7 +39,7 @@ class PySentinelApp(ctk.CTk):
         # LOGS
         self.textbox = ctk.CTkTextbox(self, width=700, font=("Consolas", 12))
         self.textbox.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="nsew")
-        self.textbox.insert("0.0", "Sistema en reposo.\n")
+        self.textbox.insert("0.0", "Sistema en reposo. Configura config.yaml antes de iniciar.\n")
         
         self.redirect_logging()
 
@@ -54,7 +60,7 @@ class PySentinelApp(ctk.CTk):
         if not self.monitoring:
             self.monitoring = True
             self.btn_scan.configure(text="DETENER VIGILANCIA", fg_color="red")
-            # Lanzamos el hilo demonio (se cierra si cierras la app)
+            # Lanzamos el hilo
             threading.Thread(target=self.monitor_loop, daemon=True).start()
         else:
             self.monitoring = False
@@ -62,23 +68,57 @@ class PySentinelApp(ctk.CTk):
             print("[*] Deteniendo vigilancia...")
 
     def monitor_loop(self):
-        print("[*] SISTEMA ARMADO Y VIGILANDO...")
+        print("[*] CARGANDO CONFIGURACIÓN...")
         
-        # Inicializar módulos
-        db = DatabaseManager()
+        try:
+            # 1. Cargar configuración
+            config = Config()
+            directorios = config.directories
+            archivo_logs = config.log_file
+            nombre_db = config.db_name
+            
+            print(f"[*] Configuración cargada correctamente.")
+            print(f"    - DB: {nombre_db}")
+            print(f"    - Directorios: {directorios}")
+            print(f"    - Telegram Activo: {config.data.get('alerts', {}).get('telegram', {}).get('enabled')}")
+
+        except Exception as e:
+            print(f"[ERROR CRÍTICO] Fallo en configuración: {e}")
+            self.monitoring = False
+            self.btn_scan.configure(text="ACTIVAR VIGILANCIA", fg_color="green")
+            return
+
+        # 2. Inicializar el Notificador (Telegram)
+        notifier = TelegramNotifier(config)
+
+        # 3. Inicializar Base de Datos y Módulos
+        db = DatabaseManager(db_name=nombre_db)
         fim = FileIntegrityMonitor(db)
-        log_watcher = LogWatcher("server_logs.txt") # <--- Iniciamos el LogWatcher
         
-        target_folder = "./test_folder"
+        # Le pasamos el 'notifier' al LogWatcher
+        log_watcher = LogWatcher(log_path=archivo_logs, notifier=notifier)
+        
+        print("[*] SISTEMA ARMADO Y VIGILANDO...")
 
         while self.monitoring:
-            # 1. Tarea: Verificar Integridad de Archivos
-            fim.scan_directory(target_folder)
+            # --- TAREA 1: FIM (Integridad de Archivos) ---
+            for folder in directorios:
+                # Si la carpeta no existe, la creamos (Resiliencia)
+                if not os.path.exists(folder):
+                    try:
+                        os.makedirs(folder)
+                        print(f"[*] Aviso: Se creó la carpeta monitorizada -> {folder}")
+                    except OSError as e:
+                        print(f"[ERROR] No se pudo crear {folder}: {e}")
+                        continue
+                
+                # Escaneamos la carpeta
+                fim.scan_directory(folder)
             
-            # 2. Tarea: Verificar Logs de Ataques
+            # --- TAREA 2: Log Watcher (Intrusiones) ---
             log_watcher.monitor_changes()
             
-            # Esperar 3 segundos antes del siguiente ciclo para no saturar CPU
+            # Esperamos 3 segundos
             time.sleep(3)
             
         db.close()

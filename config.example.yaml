@@ -1,0 +1,18 @@
+# config.example.yaml - Plantilla de configuración
+system:
+  version: "1.1.0"
+  debug_mode: true
+
+monitoring:
+  directories:
+    - "./test_folder"
+  log_file: "server_logs.txt"
+
+database:
+  name: "pysentinel.db"
+
+alerts:
+  telegram:
+    enabled: true
+    token: "TOKEN" # CAMBIAR POR TU TOKEN
+    chat_id: "ID" # CAMBIAR POR TU ID
