@@ -7,7 +7,7 @@ import os
 from tkinter import messagebox
 from pysentinel.core.database import DatabaseManager
 from pysentinel.modules.fim import FileIntegrityMonitor
-from pysentinel.modules.log_watcher import LogWatcher
+from pysentinel.modules.win_event_watcher import WindowsEventWatcher 
 from pysentinel.core.config import Config
 from pysentinel.utils.notifier import TelegramNotifier
 from pysentinel.utils.system_monitor import get_system_metrics 
@@ -170,19 +170,47 @@ class PySentinelApp(ctk.CTk):
             print("[*] Deteniendo vigilancia...")
 
     def monitor_loop(self):
-        if not self.db_instance: return
+        if not self.db_instance:
+            print("[ERROR] No hay conexión a la base de datos.")
+            return
+
+        # 1. Inicializar Notificaciones
         notifier = TelegramNotifier(self.config)
+        
+        # 2. Inicializar Monitor de Archivos (FIM)
         fim = FileIntegrityMonitor(self.db_instance)
-        log_watcher = LogWatcher(self.db_instance, self.config.log_file, notifier)
-        print("[*] VIGILANCIA ACTIVA.")
+        
+        # 3. Inicializar Vigilante de Windows (REAL)
+        # Nota: Ya no le pasamos una ruta de archivo de texto, porque lee del Kernel.
+        try:
+            win_watcher = WindowsEventWatcher(self.db_instance, notifier)
+            print("[*] Conexión establecida con el Visor de Eventos de Windows.")
+        except Exception as e:
+            print(f"[ERROR CRÍTICO] No se pudo conectar a los logs de Windows: {e}")
+            print("Asegúrate de ejecutar PySentinel como ADMINISTRADOR.")
+            self.monitoring = False
+            self.btn_scan.configure(text="ACTIVAR VIGILANCIA", fg_color="green")
+            return
+        
+        print("[*] VIGILANCIA REAL ACTIVA (System & Files).")
+
         while self.monitoring:
+            # --- TAREA A: FIM (Archivos) ---
+            # self.config.directories ahora incluye automáticamente la carpeta de Inicio de Windows
             for folder in self.config.directories:
                 if not os.path.exists(folder):
-                    try: os.makedirs(folder)
+                    try:
+                        os.makedirs(folder)
                     except: continue
                 fim.scan_directory(folder)
-            log_watcher.monitor_changes()
+            
+            # --- TAREA B: Windows Events (Intrusiones Reales) ---
+            # Busca eventos ID 4625 (Logon Failure) en los últimos segundos
+            win_watcher.check_security_logs()
+            
+            # Descanso para no saturar la CPU
             time.sleep(3)
+            
         print("[*] Sistema detenido.")
 
     def destroy(self):

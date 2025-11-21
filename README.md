@@ -51,6 +51,23 @@ El objetivo del proyecto es demostrar una arquitectura de software robusta, modu
     python gui.py
     ```
 
+## 🚀 Ejecución
+
+⚠️ **IMPORTANTE:** Para que PySentinel pueda leer los Logs de Seguridad de Windows y detectar intrusiones reales, **debe ejecutarse con permisos de Administrador**.
+
+### Desde el código fuente:
+1. Abrir terminal como Administrador.
+2. Ejecutar:
+   ```bash
+   python gui.py
+    ```
+
+### Desde el ejecutable (.exe):
+
+    Clic derecho en PySentinel_HIDS.exe.
+
+    Seleccionar "Ejecutar como administrador".
+
 ## 🛠️ Estructura del Proyecto
 
 ```text
@@ -78,3 +95,15 @@ El proyecto puede compilarse en un binario `.exe` independiente que incluye toda
 ```bash
 # Generar el ejecutable
 pyinstaller --noconsole --onefile --collect-all customtkinter gui.py
+```
+El ejecutable resultante en dist/ requiere el archivo config.yaml en la misma carpeta para funcionar.
+
+### Opción B: Docker (Contenedor Linux)
+Para entornos aislados o despliegue en servidores, el proyecto incluye configuración Docker:
+```bash
+# Construir la imagen
+docker build -t pysentinel .
+
+# Ejecutar (Requiere servidor X11 configurado para GUI)
+docker run -v $(pwd)/config.yaml:/app/config.yaml pysentinel
+```

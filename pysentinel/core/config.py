@@ -1,4 +1,5 @@
 # pysentinel/core/config.py
+import sys
 import yaml
 import os
 
@@ -17,7 +18,22 @@ class Config:
             except yaml.YAMLError as exc:
                 print(f"Error leyendo YAML: {exc}")
                 return {}
-
+    @property
+    def directories(self):
+        # Leemos del YAML
+        dirs = self.data.get("monitoring", {}).get("directories", [])
+        
+        # --- INTELIGENCIA AUTOMÁTICA ---
+        # Si la lista está vacía o queremos añadir rutas críticas por defecto:
+        if sys.platform == "win32":
+            # Añadimos la carpeta de Inicio de Windows automáticamente
+            startup_path = os.path.join(os.getenv('APPDATA'), r'Microsoft\Windows\Start Menu\Programs\Startup')
+            if startup_path not in dirs:
+                dirs.append(startup_path)
+                print(f"[AUTO] Añadida ruta crítica de Inicio: {startup_path}")
+                
+        return dirs
+    
     @property
     def directories(self):
         return self.data.get("monitoring", {}).get("directories", [])
