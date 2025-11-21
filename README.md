@@ -9,9 +9,16 @@
 
 El sistema integra vigilancia de **Red**, **Archivos**, **Logs de Windows** y **Dispositivos USB** en un dashboard centralizado con alertas al móvil.
 
-## 📸 Dashboard
+## 🖥️ Dashboard Categorizado (Nuevo en v3.0)
 
-*(Sube una captura de tu GUI aquí y pon la ruta, ej: `![Dashboard](screenshots/dashboard.png)`)*
+La interfaz gráfica ha sido rediseñada para facilitar la gestión de incidentes en tiempo real:
+
+* **General:** Visión unificada de todos los eventos.
+* **🌐 Red:** Pestaña exclusiva para conexiones salientes y bloqueos interactivos.
+* **🚪 Puertos:** Monitorización de puertos abiertos (Listeners).
+* **📂 Archivos:** Integridad de archivos y cambios en disco.
+* **⚙️ Sistema:** Logs de Windows, alertas USB y salud del hardware.
+
 
 ## 🚀 Capacidades (Nivel EDR)
 
