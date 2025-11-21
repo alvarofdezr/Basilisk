@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Base de datos local
+*.db
+
+# Logs
+*.log
+server_logs.txt
+
+# Carpetas de prueba locales
+test_folder/
+
+# Entornos virtuales 
+venv/
+env/
+.env
+
+# IDEs
+.vscode/
+.idea/
