@@ -24,3 +24,6 @@ env/
 
 # Archivos de configuración 
 config.yaml
+
+# Archivos variados
+attack_sim.py

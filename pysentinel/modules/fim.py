@@ -43,12 +43,16 @@ class FileIntegrityMonitor:
                 stored_hash = self.db.get_file_hash(full_path)
 
                 if stored_hash is None:
-                    self.logger.success(f"NUEVO ARCHIVO DETECTADO: {full_path}")
+                    self.logger.success(f"NUEVO ARCHIVO: {full_path}")
                     self.db.update_file(full_path, current_hash)
+                    # GUARDAR EN BD
+                    self.db.log_event("FIM", f"Nuevo archivo detectado: {full_path}", "INFO")
                 
                 elif current_hash != stored_hash:
-                    self.logger.warning(f"ALERTA DE INTEGRIDAD (MODIFICADO): {full_path}")
+                    self.logger.warning(f"ALERTA MODIFICADO: {full_path}")
                     self.db.update_file(full_path, current_hash)
+                    # GUARDAR EN BD
+                    self.db.log_event("FIM", f"Archivo modificado: {full_path}", "CRITICAL")
 
         # --- FASE 2: Detectar eliminados ---
         # Necesitamos saber qué archivos había en la BD que ya no están en 'files_on_disk'

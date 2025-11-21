@@ -7,10 +7,10 @@ from pysentinel.utils.logger import Logger
 
 class LogWatcher:
     # AÑADIMOS notifier=None AL CONSTRUCTOR
-    def __init__(self, log_path="server_logs.txt", notifier=None):
+    def __init__(self, db_manager, log_path="server_logs.txt", notifier=None):
+        self.db = db_manager 
         self.log_path = log_path
-        self.logger = Logger()
-        self.notifier = notifier  # <--- Guardamos el notificador
+        self.notifier = notifier
         self.current_position = 0
         
         if os.path.exists(self.log_path):
@@ -35,11 +35,11 @@ class LogWatcher:
             user = match.group(1)
             ip = match.group(2)
             
-            msg = f"INTRUSIÓN DETECTADA:\nUsuario: {user}\nIP Origen: {ip}"
+            msg = f"Intrusión SSH detectada - User: {user} IP: {ip}"
             
-            # Logs locales
-            self.logger.warning(msg.replace("\n", " | "))
+            # 1. Log consola
+            # 2. Alerta Telegram
+            if self.notifier: self.notifier.send_alert(msg)
             
-            # ALERTA REMOTA
-            if self.notifier:
-                self.notifier.send_alert(msg)
+            # 3. GUARDAR EN HISTORIAL (NUEVO)
+            self.db.log_event("AUTH", msg, "CRITICAL")
