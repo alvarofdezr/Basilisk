@@ -1,28 +1,60 @@
-# --- Python Basics ---
+# ===========================
+# 1. Python & Sistema
+# ===========================
 __pycache__/
 *.py[cod]
 *$py.class
-*.log
-*.sqlite
-*.db
 
-# --- Entornos Virtuales ---
+# ===========================
+# 2. Entornos Virtuales
+# ===========================
 venv/
 env/
 .env
 
-# --- IDEs ---
-.vscode/
-.idea/
+# ===========================
+# 3. Compilación (PyInstaller)
+# ===========================
+# Estas carpetas pesan mucho y se generan solas al compilar
+build/
+dist/
+# El .spec contiene la receta de compilación.
+# Se suele dejar, pero si quieres limpieza total, descomenta abajo:
+# *.spec
 
-# --- Secretos ---
+# ===========================
+# 4. Datos y Logs (Runtime)
+# ===========================
+# Bases de datos (tienen datos de tu PC, no subir nunca)
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs de texto
+*.log
+server_logs.txt
+
+# ===========================
+# 5. Reportes Generados (NUEVO)
+# ===========================
+# No queremos subir los reportes CSV con tus datos de seguridad
+*.csv
+reporte_seguridad_*.csv
+
+# ===========================
+# 6. Configuración y Secretos (VITAL)
+# ===========================
 config.yaml
 
-# --- Herramientas de Prueba ---
-attacks/
+# ===========================
+# 7. Herramientas Locales
+# ===========================
+attack_sim.py
 
-# La carpeta 'build' tiene archivos temporales basura
-build/
-
-# La carpeta 'dist' tiene el .exe final 
-dist/
+# ===========================
+# 8. IDEs y Sistema Operativo
+# ===========================
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
