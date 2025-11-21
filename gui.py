@@ -6,11 +6,14 @@ import sys
 import os
 from tkinter import messagebox
 from pysentinel.core.database import DatabaseManager
+from pysentinel.core.config import Config
 from pysentinel.modules.fim import FileIntegrityMonitor
 from pysentinel.modules.win_event_watcher import WindowsEventWatcher 
-from pysentinel.core.config import Config
+from pysentinel.modules.network_monitor import NetworkMonitor
+from pysentinel.modules.usb_monitor import USBMonitor 
 from pysentinel.utils.notifier import TelegramNotifier
-from pysentinel.utils.system_monitor import get_system_metrics 
+from pysentinel.utils.system_monitor import get_system_metrics
+
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -170,33 +173,38 @@ class PySentinelApp(ctk.CTk):
             print("[*] Deteniendo vigilancia...")
 
     def monitor_loop(self):
+        # Verificación de seguridad inicial
         if not self.db_instance:
             print("[ERROR] No hay conexión a la base de datos.")
             return
 
-        # 1. Inicializar Notificaciones
+        # 1. Inicializar Notificaciones (Telegram)
         notifier = TelegramNotifier(self.config)
         
         # 2. Inicializar Monitor de Archivos (FIM)
         fim = FileIntegrityMonitor(self.db_instance)
         
         # 3. Inicializar Vigilante de Windows (REAL)
-        # Nota: Ya no le pasamos una ruta de archivo de texto, porque lee del Kernel.
+        # Usamos try/except para que si falla (por no ser admin), el resto siga funcionando
+        win_watcher = None
         try:
             win_watcher = WindowsEventWatcher(self.db_instance, notifier)
-            print("[*] Conexión establecida con el Visor de Eventos de Windows.")
+            print("[*] Conexión establecida con Windows Event Logs.")
         except Exception as e:
             print(f"[ERROR CRÍTICO] No se pudo conectar a los logs de Windows: {e}")
             print("Asegúrate de ejecutar PySentinel como ADMINISTRADOR.")
-            self.monitoring = False
-            self.btn_scan.configure(text="ACTIVAR VIGILANCIA", fg_color="green")
-            return
+            # No hacemos return aquí para permitir que los otros módulos funcionen
+
+        # 4. Inicializar Monitor de Red (NetWatch)
+        net_monitor = NetworkMonitor(self.db_instance, notifier, config=self.config)
         
-        print("[*] VIGILANCIA REAL ACTIVA (System & Files).")
+        # 5. Inicializar Monitor USB (USB Sentry) - NUEVO
+        usb_monitor = USBMonitor(self.db_instance, notifier)
+        
+        print("[*] VIGILANCIA TOTAL ACTIVA (Archivos + WinLogs + Red + USB).")
 
         while self.monitoring:
             # --- TAREA A: FIM (Archivos) ---
-            # self.config.directories ahora incluye automáticamente la carpeta de Inicio de Windows
             for folder in self.config.directories:
                 if not os.path.exists(folder):
                     try:
@@ -204,11 +212,17 @@ class PySentinelApp(ctk.CTk):
                     except: continue
                 fim.scan_directory(folder)
             
-            # --- TAREA B: Windows Events (Intrusiones Reales) ---
-            # Busca eventos ID 4625 (Logon Failure) en los últimos segundos
-            win_watcher.check_security_logs()
+            # --- TAREA B: Windows Events (Intrusiones) ---
+            if win_watcher:
+                win_watcher.check_security_logs()
             
-            # Descanso para no saturar la CPU
+            # --- TAREA C: Monitor de Red (Conexiones) ---
+            net_monitor.scan_connections()
+            
+            # --- TAREA D: Monitor USB (Físico) ---
+            usb_monitor.check_usb_changes()
+            
+            # Descanso del ciclo
             time.sleep(3)
             
         print("[*] Sistema detenido.")

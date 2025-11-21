@@ -1,7 +1,7 @@
 # pysentinel/core/config.py
-import sys
 import yaml
 import os
+import sys
 
 class Config:
     def __init__(self, config_path="config.yaml"):
@@ -10,38 +10,52 @@ class Config:
 
     def _load_config(self):
         if not os.path.exists(self.config_path):
-            raise FileNotFoundError(f"No se encontró el archivo de configuración: {self.config_path}")
+            # Si no existe, devolvemos diccionario vacío para evitar crashes,
+            # aunque lo ideal es que el programa avise.
+            print(f"[CONFIG] Advertencia: No se encontró {self.config_path}")
+            return {}
         
         with open(self.config_path, "r") as f:
             try:
-                return yaml.safe_load(f)
+                return yaml.safe_load(f) or {}
             except yaml.YAMLError as exc:
-                print(f"Error leyendo YAML: {exc}")
+                print(f"[CONFIG] Error leyendo YAML: {exc}")
                 return {}
+
     @property
-    def directories(self):
-        # Leemos del YAML
-        dirs = self.data.get("monitoring", {}).get("directories", [])
-        
-        # --- INTELIGENCIA AUTOMÁTICA ---
-        # Si la lista está vacía o queremos añadir rutas críticas por defecto:
-        if sys.platform == "win32":
-            # Añadimos la carpeta de Inicio de Windows automáticamente
-            startup_path = os.path.join(os.getenv('APPDATA'), r'Microsoft\Windows\Start Menu\Programs\Startup')
-            if startup_path not in dirs:
-                dirs.append(startup_path)
-                print(f"[AUTO] Añadida ruta crítica de Inicio: {startup_path}")
-                
-        return dirs
-    
-    @property
-    def directories(self):
-        return self.data.get("monitoring", {}).get("directories", [])
+    def db_name(self):
+        return self.data.get("database", {}).get("name", "pysentinel.db")
 
     @property
     def log_file(self):
         return self.data.get("monitoring", {}).get("log_file", "server_logs.txt")
 
     @property
-    def db_name(self):
-        return self.data.get("database", {}).get("name", "pysentinel.db")
+    def directories(self):
+        """Devuelve directorios a vigilar + Startup de Windows automático"""
+        dirs = self.data.get("monitoring", {}).get("directories", [])
+        
+        # AUTO-DETECTAR CARPETA DE INICIO (Solo en Windows)
+        if sys.platform == "win32":
+            try:
+                startup_path = os.path.join(os.getenv('APPDATA'), r'Microsoft\Windows\Start Menu\Programs\Startup')
+                if os.path.exists(startup_path) and startup_path not in dirs:
+                    dirs.append(startup_path)
+            except:
+                pass # Si falla la autodeteción, no pasa nada
+                
+        return dirs
+
+    @property
+    def network_whitelist(self):
+        """Lista blanca de procesos de red"""
+        default_list = ["chrome.exe", "firefox.exe", "msedge.exe", "svchost.exe"]
+        return self.data.get("network", {}).get("whitelist", default_list)
+
+    @property
+    def active_response(self):
+        """
+        ESTA ES LA PROPIEDAD QUE TE FALTABA.
+        Devuelve True/False sobre si activar el modo 'Kill Switch'.
+        """
+        return self.data.get("security", {}).get("active_response", False)
