@@ -69,3 +69,12 @@ PySentinel/
 │       ├── system_monitor.py # Sensor de CPU/RAM (psutil)
 │       └── logger.py      # Logging rotativo
 └── ...
+```
+
+## 🚢 Despliegue y Distribución
+
+### Opción A: Ejecutable Portable (Windows)
+El proyecto puede compilarse en un binario `.exe` independiente que incluye todas las dependencias:
+```bash
+# Generar el ejecutable
+pyinstaller --noconsole --onefile --collect-all customtkinter gui.py

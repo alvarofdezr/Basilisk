@@ -1,29 +1,28 @@
-# Byte-compiled / optimized / DLL files
+# --- Python Basics ---
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Base de datos local
+*.log
+*.sqlite
 *.db
 
-# Logs
-*.log
-server_logs.txt
-
-# Carpetas de prueba locales
-test_folder/
-
-# Entornos virtuales 
+# --- Entornos Virtuales ---
 venv/
 env/
 .env
 
-# IDEs
+# --- IDEs ---
 .vscode/
 .idea/
 
-# Archivos de configuración 
+# --- Secretos ---
 config.yaml
 
-# Archivos variados
-attack_sim.py
+# --- Herramientas de Prueba ---
+attacks/
+
+# La carpeta 'build' tiene archivos temporales basura
+build/
+
+# La carpeta 'dist' tiene el .exe final 
+dist/
