@@ -15,41 +15,51 @@ env/
 # ===========================
 # 3. Compilación (PyInstaller)
 # ===========================
-# Estas carpetas pesan mucho y se generan solas al compilar
 build/
 dist/
-# El .spec contiene la receta de compilación.
-# Se suele dejar, pero si quieres limpieza total, descomenta abajo:
+# Opcional: Si quieres ignorar los .spec descomenta las siguientes líneas. 
+# (Yo recomiendo dejarlos para que otros sepan cómo compilar tu .exe)
 # *.spec
 
 # ===========================
 # 4. Datos y Logs (Runtime)
 # ===========================
-# Bases de datos (tienen datos de tu PC, no subir nunca)
 *.db
 *.sqlite
 *.sqlite3
+# ### NUEVO: Archivos temporales de SQLite (Journaling) ###
+*.db-journal
+*.db-wal
 
-# Logs de texto
+# Logs
 *.log
 server_logs.txt
 
 # ===========================
-# 5. Reportes Generados (NUEVO)
+# 5. Reportes Generados
 # ===========================
-# No queremos subir los reportes CSV con tus datos de seguridad
 *.csv
 reporte_seguridad_*.csv
 
 # ===========================
-# 6. Configuración y Secretos (VITAL)
+# 6. Configuración y Secretos
 # ===========================
+# config.yaml (Tiene tu hash y rutas privadas -> IGNORAR)
 config.yaml
 
+# config.example.yaml (Plantilla vacía -> SÍ SUBIR)
+# (No lo ponemos aquí para que git lo detecte)
+
 # ===========================
-# 7. Herramientas Locales
+# 7. Scripts de Hacking/Test (NO SUBIR)
 # ===========================
+# Herramientas ofensivas o pruebas locales que se ven en tu foto
 attack_sim.py
+red_team.py
+prueba_ransomware.py
+generar_pass.py
+# Script temporal si lo creaste
+tests/temp/
 
 # ===========================
 # 8. IDEs y Sistema Operativo

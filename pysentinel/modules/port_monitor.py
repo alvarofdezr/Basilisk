@@ -1,63 +1,116 @@
+# pysentinel/modules/port_monitor.py
 import psutil
+import socket
 import time
-from pysentinel.utils.logger import Logger
+from pysentinel.core.database import DatabaseManager
 
 class PortMonitor:
-    def __init__(self, db_manager, notifier=None):
+    def __init__(self, db_manager: DatabaseManager, notifier):
         self.db = db_manager
         self.notifier = notifier
-        self.logger = Logger()
+        self.previous_ports = set()
         
-        # Escaneamos los puertos abiertos al iniciar para tener una "Línea Base"
-        # No alertaremos de lo que ya estaba abierto al arrancar el programa.
-        self.known_ports = self._get_listening_ports()
-        print(f"[*] PortMonitor: Línea base establecida con {len(self.known_ports)} puertos abiertos.")
+        # Inicializamos la línea base silenciosamente
+        self._initialize_baseline()
 
-    def _get_listening_ports(self):
-        """Devuelve un conjunto (Set) de puertos 'LISTEN' y sus procesos"""
-        current_ports = set()
+    def _initialize_baseline(self):
+        """Toma la foto inicial sin alertar"""
+        self.previous_ports = self._get_current_ports()
+        print(f"[*] PortMonitor: Línea base establecida con {len(self.previous_ports)} puertos abiertos.")
+
+    def _get_current_ports(self):
+        """Devuelve un set de tuplas (puerto, tipo_protocolo) para comparación rápida"""
+        open_ports = set()
         try:
-            # kind='inet' -> Solo IPv4 (para simplificar)
-            connections = psutil.net_connections(kind='inet')
-            for conn in connections:
-                if conn.status == 'LISTEN':
-                    # Guardamos una firma única: "PUERTO-PROTOCOLO"
-                    # Para identificarlo luego.
+            # net_connections('inet') trae TCP y UDP
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.status == 'LISTEN' or conn.type == socket.SOCK_DGRAM:
                     port = conn.laddr.port
+                    # Determinamos protocolo
+                    proto = "TCP" if conn.type == socket.SOCK_STREAM else "UDP"
+                    open_ports.add((port, proto))
+        except Exception:
+            pass
+        return open_ports
+
+    def get_service_name(self, port, proto):
+        """Traduce puerto 80 -> 'http', 443 -> 'https', etc."""
+        try:
+            return socket.getservbyport(port, proto.lower())
+        except:
+            return "Desconocido"
+
+    def get_full_report(self):
+        """
+        Genera un reporte DETALLADO de todos los puertos.
+        Devuelve una lista de diccionarios para la GUI (Auditoría).
+        """
+        report = []
+        try:
+            for conn in psutil.net_connections(kind='inet'):
+                # Filtramos solo lo que está escuchando (Listening) o UDP
+                if conn.status == 'LISTEN' or conn.type == socket.SOCK_DGRAM:
+                    port = conn.laddr.port
+                    proto = "TCP" if conn.type == socket.SOCK_STREAM else "UDP"
                     pid = conn.pid
                     
+                    # 1. Obtener nombre del proceso
+                    process_name = "System/Restricted"
                     try:
-                        proc = psutil.Process(pid)
-                        proc_name = proc.name().lower()
-                    except:
-                        proc_name = "unknown"
+                        if pid:
+                            proc = psutil.Process(pid)
+                            process_name = proc.name()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied): 
+                        pass
 
-                    # Guardamos una tupla (puerto, nombre_proceso)
-                    current_ports.add((port, proc_name))
+                    # 2. Obtener nombre del servicio estándar
+                    service_name = self.get_service_name(port, proto)
+
+                    # Añadimos al reporte
+                    report.append({
+                        "port": port,
+                        "proto": proto,
+                        "service": service_name,
+                        "process": process_name,
+                        "pid": pid if pid else "?"
+                    })
+            
+            # Ordenamos por número de puerto para que se vea bonito
+            report.sort(key=lambda x: x['port'])
+            
         except Exception as e:
-            print(f"[ERROR PORT MON] {e}")
-        
-        return current_ports
+            print(f"[ERROR PORTS] {e}")
+            
+        return report
 
     def scan_ports(self):
-        """Busca puertos NUEVOS que no estaban antes"""
-        current_ports = self._get_listening_ports()
+        """Bucle de vigilancia (Solo avisa cambios, no reporta todo)"""
+        current_ports = self._get_current_ports()
         
-        # Lógica de Conjuntos: Lo que hay AHORA menos lo que había ANTES
-        new_ports = current_ports - self.known_ports
-        
-        # Detectar puertos CERRADOS (opcional, pero útil)
-        closed_ports = self.known_ports - current_ports
-
-        # ALERTA POR PUERTOS NUEVOS (CRÍTICO)
-        for port, proc_name in new_ports:
-            msg = f"🚪 ALERTA PUERTO: Se ha abierto una nueva puerta trasera.\nPuerto: {port}\nProceso: {proc_name}"
-            print(f"[PORT] {msg}")
+        # Detectar NUEVOS
+        new_ports = current_ports - self.previous_ports
+        for port, proto in new_ports:
+            # Intentamos identificar quién lo abrió
+            proc_name = "Desconocido"
+            try:
+                for conn in psutil.net_connections(kind='inet'):
+                    if conn.laddr.port == port:
+                        if conn.pid: proc_name = psutil.Process(conn.pid).name()
+                        break
+            except: pass
             
-            self.db.log_event("PORT_OPEN", msg, "CRITICAL")
+            msg = f"NUEVO PUERTO ABIERTO: {port} ({proto}) - Proc: {proc_name}"
+            print(f"[PORT] ⚠️ {msg}")
+            
+            self.db.log_event("PORT_OPEN", msg, "WARNING")
             if self.notifier:
-                self.notifier.send_alert(msg)
+                self.notifier.send_alert(f"⚠️ {msg}")
 
-        # Si se cierran puertos, solo actualizamos la lista, no hace falta alertar tanto
-        if new_ports or closed_ports:
-            self.known_ports = current_ports
+        # Detectar CERRADOS
+        closed_ports = self.previous_ports - current_ports
+        for port, proto in closed_ports:
+            msg = f"Puerto cerrado: {port} ({proto})"
+            print(f"[PORT] ℹ️ {msg}")
+            self.db.log_event("PORT_CLOSE", msg, "INFO")
+
+        self.previous_ports = current_ports

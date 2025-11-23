@@ -21,13 +21,21 @@ class Logger:
 
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
 
-        # Consola
+        # --- FIX 1: SOLUCIÓN PARA CONSOLA (CRITICAL FIX) ---
+        # En Windows, forzamos la salida estándar a UTF-8 para soportar emojis sin crashear
+        if sys.platform == "win32":
+            try:
+                sys.stdout.reconfigure(encoding='utf-8')
+            except Exception:
+                pass # Si falla por versión antigua de Python, lo ignoramos
+
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        # Archivo
-        file_handler = logging.FileHandler("pysentinel_audit.log")
+        # --- FIX 2: SOLUCIÓN PARA ARCHIVO ---
+        # Añadimos encoding='utf-8' para poder escribir emojis en el log
+        file_handler = logging.FileHandler("pysentinel_audit.log", encoding='utf-8')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 

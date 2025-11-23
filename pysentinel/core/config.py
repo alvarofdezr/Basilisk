@@ -10,17 +10,13 @@ class Config:
 
     def _load_config(self):
         if not os.path.exists(self.config_path):
-            # Si no existe, devolvemos diccionario vacío para evitar crashes,
-            # aunque lo ideal es que el programa avise.
-            print(f"[CONFIG] Advertencia: No se encontró {self.config_path}")
             return {}
         
-        with open(self.config_path, "r") as f:
-            try:
+        try:
+            with open(self.config_path, "r") as f:
                 return yaml.safe_load(f) or {}
-            except yaml.YAMLError as exc:
-                print(f"[CONFIG] Error leyendo YAML: {exc}")
-                return {}
+        except yaml.YAMLError:
+            return {}
 
     @property
     def db_name(self):
@@ -28,34 +24,40 @@ class Config:
 
     @property
     def log_file(self):
-        return self.data.get("monitoring", {}).get("log_file", "server_logs.txt")
+        return self.data.get("monitoring", {}).get("log_file", "pysentinel.log")
 
     @property
     def directories(self):
-        """Devuelve directorios a vigilar + Startup de Windows automático"""
+        """Obtiene directorios configurados y añade Start Menu si es Windows."""
         dirs = self.data.get("monitoring", {}).get("directories", [])
         
-        # AUTO-DETECTAR CARPETA DE INICIO (Solo en Windows)
         if sys.platform == "win32":
             try:
-                startup_path = os.path.join(os.getenv('APPDATA'), r'Microsoft\Windows\Start Menu\Programs\Startup')
-                if os.path.exists(startup_path) and startup_path not in dirs:
-                    dirs.append(startup_path)
-            except:
-                pass # Si falla la autodeteción, no pasa nada
-                
+                startup = os.path.join(os.getenv('APPDATA'), r'Microsoft\Windows\Start Menu\Programs\Startup')
+                if os.path.exists(startup) and startup not in dirs:
+                    dirs.append(startup)
+            except Exception:
+                pass
         return dirs
 
     @property
     def network_whitelist(self):
-        """Lista blanca de procesos de red"""
-        default_list = ["chrome.exe", "firefox.exe", "msedge.exe", "svchost.exe"]
-        return self.data.get("network", {}).get("whitelist", default_list)
+        default = ["chrome.exe", "firefox.exe", "msedge.exe", "svchost.exe", "python.exe"]
+        return self.data.get("network", {}).get("whitelist", default)
 
     @property
     def active_response(self):
-        """
-        ESTA ES LA PROPIEDAD QUE TE FALTABA.
-        Devuelve True/False sobre si activar el modo 'Kill Switch'.
-        """
         return self.data.get("security", {}).get("active_response", False)
+
+    @property
+    def admin_hash(self):
+        """Hash SHA-256 para operaciones administrativas."""
+        return self.data.get("security", {}).get("admin_password_hash", "")
+
+    @property
+    def telegram_token(self):
+        return self.data.get("notifications", {}).get("telegram_token", "")
+
+    @property
+    def telegram_chat_id(self):
+        return self.data.get("notifications", {}).get("telegram_chat_id", "")

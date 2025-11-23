@@ -1,47 +1,68 @@
+# pysentinel/modules/usb_monitor.py
 import psutil
 import time
-from pysentinel.utils.logger import Logger
+from pysentinel.core.database import DatabaseManager
 
 class USBMonitor:
-    def __init__(self, db_manager, notifier=None):
+    def __init__(self, db_manager: DatabaseManager, notifier):
         self.db = db_manager
         self.notifier = notifier
-        self.logger = Logger()
-        # Guardamos los discos que hay conectados AL INICIO (C:, D:...)
-        self.existing_drives = self._get_current_drives()
+        
+        # Inicialización
+        self.known_devices = self._get_connected_drives()
+        print(f"[*] USBMonitor INICIADO. Estado inicial: {self.known_devices}")
 
-    def _get_current_drives(self):
-        """Devuelve una lista de las letras de disco conectadas (Ej: ['C:\\', 'D:\\'])"""
-        drives = []
+    def _get_connected_drives(self):
+        drives = set()
         try:
+            # Usamos all=True para ver absolutamente todo
             partitions = psutil.disk_partitions(all=True)
             for p in partitions:
-                if p.device and p.opts != 'cdrom': # Ignoramos CD-ROMs
-                    drives.append(p.device)
-        except:
-            pass
+                if p.device:
+                    drives.add(p.device)
+        except Exception as e:
+            print(f"[ERROR CRÍTICO USB] {e}")
         return drives
 
     def check_usb_changes(self):
-        """Compara los discos actuales con los que había antes"""
-        current_drives = self._get_current_drives()
+        """Compara el estado actual con el anterior"""
+        current_devices = self._get_connected_drives()
         
-        # Detectar NUEVOS discos (Set Difference)
-        # Lo que hay en 'current' que no estaba en 'existing'
-        new_drives = list(set(current_drives) - set(self.existing_drives))
-        
-        # Detectar discos RETIRADOS
-        removed_drives = list(set(self.existing_drives) - set(current_drives))
+        # --- DEBUG: ESTO NOS DIRÁ QUÉ PASA ---
+        # Imprime lo que ve en cada vuelta del bucle (spam temporal)
+        # print(f"[DEBUG USB] Escaneando... Veo: {current_devices}") 
+        # -------------------------------------
 
-        # Procesar Nuevos USBs
-        for drive in new_drives:
-            msg = f"🔌 ALERTA FÍSICA: Nuevo dispositivo USB detectado.\nUnidad: {drive}"
-            print(f"[USB] {msg}")
+        new_devices = current_devices - self.known_devices
+        removed_devices = self.known_devices - current_devices
+
+        # ALERTA DE CONEXIÓN
+        for device in new_devices:
+            # Intentamos sacar info extra
+            info = ""
+            try:
+                usage = psutil.disk_usage(device)
+                gb = round(usage.total / (1024**3), 2)
+                info = f"({gb} GB)"
+            except: pass
+
+            msg = f"CONEXIÓN DETECTADA: Unidad {device} {info}"
             
-            self.db.log_event("USB", msg, "WARNING")
+            # La etiqueta clave
+            print(f"[USB] ⚠️ {msg}") 
+            
+            self.db.log_event("USB_CONN", msg, "WARNING")
             if self.notifier:
-                self.notifier.send_alert(msg)
+                self.notifier.send_alert(f"💾 {msg}")
 
-        # Actualizar la lista de referencia para la siguiente vuelta
-        if new_drives or removed_drives:
-            self.existing_drives = current_drives
+        # ALERTA DE DESCONEXIÓN
+        for device in removed_devices:
+            msg = f"Dispositivo retirado: Unidad {device}"
+            print(f"[USB] ℹ️ {msg}")
+            self.db.log_event("USB_DISCONN", msg, "INFO")
+
+        # Actualizar estado
+        if new_devices or removed_devices:
+            # DEBUG
+            print(f"[DEBUG USB] Cambio de estado confirmado. Antes: {self.known_devices} -> Ahora: {current_devices}")
+            self.known_devices = current_devices

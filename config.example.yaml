@@ -1,12 +1,17 @@
-# config.example.yaml - Plantilla de configuración
+# config.yaml
 system:
   version: "1.1.0"
   debug_mode: true
 
 monitoring:
+  # Lista de carpetas que quieres vigilar 
   directories:
     - "./test_folder"
+  
+  # Archivo de logs a analizar
   log_file: "server_logs.txt"
+
+admin_password_hash: ""
 
 database:
   name: "pysentinel.db"
@@ -14,5 +19,12 @@ database:
 alerts:
   telegram:
     enabled: true
-    token: "TOKEN" # CAMBIAR POR TU TOKEN
-    chat_id: "ID" # CAMBIAR POR TU ID
+    token: ""     
+    chat_id: "" 
+
+network:
+  whitelist:
+    - ""
+
+security:
+  active_response: false # Solo avisa

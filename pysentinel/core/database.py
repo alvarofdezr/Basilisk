@@ -6,49 +6,58 @@ from datetime import datetime
 
 class DatabaseManager:
     def __init__(self, db_name="pysentinel.db"):
-        self.conn = sqlite3.connect(db_name, check_same_thread=False) # Importante para GUI
+        self.db_name = db_name # Guardamos el nombre para reconexiones si hace falta
+        self.conn = sqlite3.connect(db_name, check_same_thread=False)
         self.cursor = self.conn.cursor()
         self.create_tables()
 
     def create_tables(self):
-        # Tabla 1: Integridad de archivos (FIM)
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS files (
-                path TEXT PRIMARY KEY,
-                hash TEXT
-            )
-        ''')
-        
-        # Tabla 2: Historial de Eventos (NUEVA)
+        # Tabla 1: Historial de Eventos (Existente)
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT,
-                type TEXT,       -- Ej: "FIM", "AUTH"
+                type TEXT,
                 message TEXT,
-                severity TEXT    -- Ej: "INFO", "WARNING", "CRITICAL"
+                severity TEXT
             )
         ''')
-        self.conn.commit()
 
-    # --- MÉTODOS DE ARCHIVOS (Igual que antes) ---
-    def get_file_hash(self, path: str) -> Optional[str]:
-        self.cursor.execute('SELECT hash FROM files WHERE path = ?', (path,))
-        result = self.cursor.fetchone()
-        return result[0] if result else None
-
-    def update_file(self, path: str, file_hash: str):
+        # Tabla 2: LÍNEA BASE (Snapshot) - NUEVA
+        # Guarda el estado "correcto" de los archivos (Ruta, Hash, Fecha Modificación)
         self.cursor.execute('''
-            INSERT INTO files (path, hash) VALUES (?, ?)
-            ON CONFLICT(path) DO UPDATE SET hash=excluded.hash
-        ''', (path, file_hash))
+            CREATE TABLE IF NOT EXISTS files_baseline (
+                path TEXT PRIMARY KEY,
+                file_hash TEXT,
+                last_modified FLOAT
+            )
+        ''')
+        
         self.conn.commit()
 
-    def delete_file(self, path: str):
-        self.cursor.execute('DELETE FROM files WHERE path = ?', (path,))
-        self.conn.commit()
+    # --- MÉTODOS DE LÍNEA BASE (SNAPSHOT) ---
+    def update_baseline(self, path: str, file_hash: str, last_modified: float):
+        """Guarda o actualiza la foto inicial de un archivo"""
+        # Usamos una nueva conexión para evitar problemas de hilos si se llama desde threads
+        conn = sqlite3.connect(self.db_name) 
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO files_baseline (path, file_hash, last_modified)
+            VALUES (?, ?, ?)
+        ''', (path, file_hash, last_modified))
+        conn.commit()
+        conn.close()
 
-    # --- MÉTODOS DE EVENTOS (NUEVOS) ---
+    def get_file_baseline(self, path: str):
+        """Recupera los datos guardados de la línea base"""
+        conn = sqlite3.connect(self.db_name)
+        cursor = conn.cursor()
+        cursor.execute('SELECT file_hash, last_modified FROM files_baseline WHERE path = ?', (path,))
+        result = cursor.fetchone()
+        conn.close()
+        return result # Retorna (hash, last_modified) o None
+
+    # --- MÉTODOS DE EVENTOS ---
     def log_event(self, event_type, message, severity="INFO"):
         """Guarda un evento en el historial permanente"""
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -59,21 +68,17 @@ class DatabaseManager:
         self.conn.commit()
 
     def get_recent_events(self, limit=50):
-        """Recupera los últimos eventos para mostrarlos en la GUI"""
         self.cursor.execute('SELECT timestamp, type, severity, message FROM events ORDER BY id DESC LIMIT ?', (limit,))
         return self.cursor.fetchall()
 
     def export_events_to_csv(self, filename="reporte_seguridad.csv"):
-        """Exporta todos los eventos a un archivo CSV para Excel"""
         try:
             self.cursor.execute('SELECT timestamp, type, severity, message FROM events ORDER BY id DESC')
             rows = self.cursor.fetchall()
             
             with open(filename, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                # Escribir encabezados
                 writer.writerow(["FECHA", "TIPO", "SEVERIDAD", "MENSAJE"])
-                # Escribir datos
                 writer.writerows(rows)
             return True, f"Exportado correctamente a {filename}"
         except Exception as e:
