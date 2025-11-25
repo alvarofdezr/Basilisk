@@ -1,18 +1,17 @@
-# pysentinel/core/database.py
+# ARCHIVO: pysentinel/core/database.py
 import sqlite3
 import csv
-from typing import Optional
+from typing import Optional, List, Tuple, Any
 from datetime import datetime
 
 class DatabaseManager:
-    def __init__(self, db_name="pysentinel.db"):
-        self.db_name = db_name # Guardamos el nombre para reconexiones si hace falta
-        self.conn = sqlite3.connect(db_name, check_same_thread=False)
-        self.cursor = self.conn.cursor()
+    def __init__(self, db_name: str = "pysentinel.db") -> None:
+        self.db_name: str = db_name 
+        self.conn: sqlite3.Connection = sqlite3.connect(db_name, check_same_thread=False)
+        self.cursor: sqlite3.Cursor = self.conn.cursor()
         self.create_tables()
 
-    def create_tables(self):
-        # Tabla 1: Historial de Eventos (Existente)
+    def create_tables(self) -> None:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,9 +21,6 @@ class DatabaseManager:
                 severity TEXT
             )
         ''')
-
-        # Tabla 2: LÍNEA BASE (Snapshot) - NUEVA
-        # Guarda el estado "correcto" de los archivos (Ruta, Hash, Fecha Modificación)
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS files_baseline (
                 path TEXT PRIMARY KEY,
@@ -32,13 +28,9 @@ class DatabaseManager:
                 last_modified FLOAT
             )
         ''')
-        
         self.conn.commit()
 
-    # --- MÉTODOS DE LÍNEA BASE (SNAPSHOT) ---
-    def update_baseline(self, path: str, file_hash: str, last_modified: float):
-        """Guarda o actualiza la foto inicial de un archivo"""
-        # Usamos una nueva conexión para evitar problemas de hilos si se llama desde threads
+    def update_baseline(self, path: str, file_hash: str, last_modified: float) -> None:
         conn = sqlite3.connect(self.db_name) 
         cursor = conn.cursor()
         cursor.execute('''
@@ -48,18 +40,15 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
-    def get_file_baseline(self, path: str):
-        """Recupera los datos guardados de la línea base"""
+    def get_file_baseline(self, path: str) -> Optional[Tuple[str, float]]:
         conn = sqlite3.connect(self.db_name)
         cursor = conn.cursor()
         cursor.execute('SELECT file_hash, last_modified FROM files_baseline WHERE path = ?', (path,))
         result = cursor.fetchone()
         conn.close()
-        return result # Retorna (hash, last_modified) o None
+        return result 
 
-    # --- MÉTODOS DE EVENTOS ---
-    def log_event(self, event_type, message, severity="INFO"):
-        """Guarda un evento en el historial permanente"""
+    def log_event(self, event_type: str, message: str, severity: str = "INFO") -> None:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.cursor.execute('''
             INSERT INTO events (timestamp, type, message, severity)
@@ -67,15 +56,14 @@ class DatabaseManager:
         ''', (now, event_type, message, severity))
         self.conn.commit()
 
-    def get_recent_events(self, limit=50):
+    def get_recent_events(self, limit: int = 50) -> List[Tuple[Any, ...]]:
         self.cursor.execute('SELECT timestamp, type, severity, message FROM events ORDER BY id DESC LIMIT ?', (limit,))
         return self.cursor.fetchall()
 
-    def export_events_to_csv(self, filename="reporte_seguridad.csv"):
+    def export_events_to_csv(self, filename: str = "reporte_seguridad.csv") -> Tuple[bool, str]:
         try:
             self.cursor.execute('SELECT timestamp, type, severity, message FROM events ORDER BY id DESC')
             rows = self.cursor.fetchall()
-            
             with open(filename, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow(["FECHA", "TIPO", "SEVERIDAD", "MENSAJE"])
@@ -84,5 +72,26 @@ class DatabaseManager:
         except Exception as e:
             return False, str(e)
 
-    def close(self):
+    # --- MÉTODOS PARA DASHBOARD (ESTADÍSTICAS) ---
+    def get_stats_by_severity(self) -> List[Tuple[str, int]]:
+        """Devuelve conteo de eventos por severidad (para gráfico de tarta)"""
+        # Ejemplo: [('INFO', 50), ('WARNING', 10), ('CRITICAL', 2)]
+        self.cursor.execute('SELECT severity, COUNT(*) FROM events GROUP BY severity')
+        return self.cursor.fetchall()
+
+    def get_activity_last_24h(self) -> int:
+        """Cuenta eventos totales en las últimas 24h (para el Score de Salud)"""
+        # Nota: En SQL simple comparamos strings de fecha, asumimos formato YYYY-MM-DD...
+        # Para simplificar en este MVP, contamos los últimos 100 eventos y vemos cuántos son de hoy
+        today = datetime.now().strftime("%Y-%m-%d")
+        self.cursor.execute("SELECT COUNT(*) FROM events WHERE timestamp LIKE ?", (f"{today}%",))
+        result = self.cursor.fetchone()
+        return result[0] if result else 0
+
+    def get_stats_by_type(self) -> List[Tuple[str, int]]:
+        """Devuelve conteo por tipo de evento (USB, NET, FILE...)"""
+        self.cursor.execute('SELECT type, COUNT(*) FROM events GROUP BY type ORDER BY COUNT(*) DESC LIMIT 5')
+        return self.cursor.fetchall()
+
+    def close(self) -> None:
         self.conn.close()

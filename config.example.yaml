@@ -28,3 +28,4 @@ network:
 
 security:
   active_response: false # Solo avisa
+  admin_password_hash: ""

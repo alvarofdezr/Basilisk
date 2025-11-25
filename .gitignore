@@ -46,6 +46,7 @@ reporte_seguridad_*.csv
 # ===========================
 # config.yaml (Tiene tu hash y rutas privadas -> IGNORAR)
 config.yaml
+ActualizarAplicacion
 
 # config.example.yaml (Plantilla vacía -> SÍ SUBIR)
 # (No lo ponemos aquí para que git lo detecte)

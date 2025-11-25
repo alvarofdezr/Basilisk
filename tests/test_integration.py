@@ -6,7 +6,7 @@ import threading
 from unittest.mock import MagicMock, patch
 
 # Importamos tus módulos reales
-from pysentinel.core.database import DatabaseManager
+from pysentinel.core.database import Config
 from pysentinel.modules.fim import FileIntegrityMonitor
 from pysentinel.modules.anti_ransomware import CanarySentry
 from pysentinel.modules.network_monitor import NetworkMonitor
@@ -17,7 +17,7 @@ from pysentinel.modules.network_monitor import NetworkMonitor
 def test_db(tmp_path):
     """Crea una base de datos real pero temporal para el test"""
     db_file = tmp_path / "test_pysentinel.db"
-    db = DatabaseManager(db_name=str(db_file))
+    db = Config(db_name=str(db_file))
     return db
 
 @pytest.fixture

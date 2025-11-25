@@ -1,157 +1,174 @@
-# PySentinel - Advanced EDR & Security Hub 🛡️
+# PySentinel EDR: Enterprise Security Suite 🛡️
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-v2.0%20(Stable)-success)
+<div align="center">
 
-**PySentinel** es una herramienta de defensa activa (EDR - Endpoint Detection and Response) desarrollada en Python. A diferencia de los antivirus tradicionales, PySentinel se enfoca en la detección de comportamiento anómalo en tiempo real, monitorización de la salud del sistema y respuesta interactiva ante amenazas.
+![Logo](https://img.shields.io/badge/PySentinel-EDR_v5.0-0052cc?style=for-the-badge&logo=security&logoColor=white)
 
-El sistema integra vigilancia de **Red**, **Archivos**, **Logs de Windows** y **Dispositivos USB** en un dashboard centralizado con alertas al móvil.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Production_Ready-success?style=flat-square)]()
+[![Security](https://img.shields.io/badge/Threat_Intel-VirusTotal-blueviolet?style=flat-square&logo=virustotal&logoColor=white)](https://www.virustotal.com/)
 
-## 🖥️ Dashboard Categorizado (Nuevo en v3.0)
+**Un sistema de Detección y Respuesta en el Endpoint (EDR) de próxima generación, diseñado para la monitorización forense, defensa activa y análisis de amenazas en tiempo real.**
 
-La interfaz gráfica ha sido rediseñada para facilitar la gestión de incidentes en tiempo real:
+[Reportar Bug](https://github.com/tu_usuario/PySentinel/issues) · [Solicitar Feature](https://github.com/tu_usuario/PySentinel/issues)
 
-* **General:** Visión unificada de todos los eventos.
-* **🌐 Red:** Pestaña exclusiva para conexiones salientes y bloqueos interactivos.
-* **🚪 Puertos:** Monitorización de puertos abiertos (Listeners).
-* **📂 Archivos:** Integridad de archivos y cambios en disco.
-* **⚙️ Sistema:** Logs de Windows, alertas USB y salud del hardware.
+</div>
 
+---
 
-## 🚀 Capacidades (Nivel EDR)
+## 📋 Tabla de Contenidos
+- [Resumen del Proyecto](#-resumen-del-proyecto)
+- [Características Principales](#-características-principales)
+- [Arquitectura del Sistema](#-arquitectura-del-sistema)
+- [Instalación y Despliegue](#-instalación-y-despliegue)
+- [Configuración](#-configuración)
+- [Compilación (Binario)](#-compilación-binario)
+- [Roadmap](#-roadmap)
+- [Disclaimer](#-disclaimer)
 
-### 1. 🌐 NetWatch Interactivo (Firewall de Aplicación)
-* **Monitorización:** Analiza todas las conexiones TCP salientes en tiempo real.
-* **Respuesta Activa:** Si un proceso desconocido (fuera de la Whitelist) intenta conectarse a Internet, el sistema **bloquea el hilo de ejecución** y despliega una ventana de alerta segura.
-* **Decisión del Usuario:** Permite **BLOQUEAR** (Kill Process) o **PERMITIR** la conexión al instante.
-* **Notificaciones Toast:** Avisos nativos de Windows 10/11 no intrusivos.
+---
 
-### 2. 🔌 USB Sentry (Seguridad Física)
-* Detección inmediata de dispositivos de almacenamiento conectados ("Hot-plug").
-* Alerta crítica sobre nuevos volúmenes montados para prevenir ataques físicos o exfiltración de datos.
-* Sistema tolerante a fallos para evitar crasheos por hardware defectuoso.
+## 🔭 Resumen del Proyecto
 
-### 3. 👁️ Windows Event Monitor (Real-Time Logs)
-* Integración directa con la **Win32 API** para leer el *Security Event Log* del Kernel.
-* Detección proactiva del **Evento ID 4625** (Fallos de inicio de sesión / Fuerza bruta).
+**PySentinel v5.0** no es un simple antivirus. Es una suite de ciberseguridad modular que implementa principios de **Zero Trust** y **Defensa en Profundidad**. 
 
-### 4. 📂 File Integrity Monitor (FIM)
-* Motor de hashing SHA-256 para vigilar cambios no autorizados, creación o eliminación de archivos en directorios críticos.
+Utilizando heurística avanzada, trampas tipo "Canary" y análisis de inteligencia de amenazas en la nube, PySentinel protege estaciones de trabajo críticas contra Ransomware, persistencia en el registro y exfiltración de datos, ofreciendo un **SOC Dashboard** visual para la toma de decisiones inmediata.
 
-### 5. 📊 Salud del Sistema & Reporting
-* Visualización en tiempo real de CPU, RAM y Disco (`psutil`).
-* Exportación de incidentes a **CSV** para auditorías forenses.
-* Notificaciones Push al móvil vía **Telegram Bot API**.
+---
 
-## 📦 Instalación
+## 🚀 Características Principales
 
-### Prerrequisitos
-PySentinel requiere permisos de **Administrador** para interactuar con los logs del sistema y gestionar procesos.
+### 🛡️ Defensa Activa & Anti-Ransomware
+* **Canary Sentry:** Despliegue de señuelos criptográficos ocultos. Detección de modificación/cifrado en <5ms.
+* **Kill Switch Automatizado:** Terminación forzosa de procesos (`SIGKILL`) que violan políticas de red o integridad.
+* **Registry Monitor:** Vigilancia de claves de persistencia (`Run`, `RunOnce`) para detectar Backdoors y RATs.
 
-1.  **Clonar el repositorio:**
-    ```bash
-    git clone [https://github.com/TU_USUARIO/PySentinel.git](https://github.com/TU_USUARIO/PySentinel.git)
-    cd PySentinel
-    ```
+### 🔍 Análisis Forense & Threat Intel
+* **Integración VirusTotal:** Consulta de hashes en tiempo real contra +70 motores antivirus (API v3).
+* **Auditoría de Procesos:** Detección de *Masquerading* (falsos procesos de sistema) y ejecución desde directorios temporales (`%TEMP%`).
+* **Port Scanner:** Monitorización en tiempo real de puertos *Listening* (TCP/UDP) y asociación de PID/Servicio.
 
-2.  **Instalar dependencias:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-    *Librerías clave: `customtkinter`, `psutil`, `pywin32`, `win10toast`, `pyyaml`, `requests`.*
+### 📊 FIM 2.0 (File Integrity Monitor)
+* **Smart Hashing Algorithm:** Hashing híbrido (Cabecera/Pie) para archivos >50MB, permitiendo escaneos de Terabytes sin latencia.
+* **Baseline Snapshots:** Creación de líneas base de integridad protegidas criptográficamente (SHA-512).
 
-## ⚙️ Configuración (`config.yaml`)
+### 🖥️ SOC Dashboard
+* **Métricas en Vivo:** Gráficos de anillos y barras (`matplotlib`) para visualización de incidentes.
+* **Health Score:** Algoritmo de puntuación de salud del sistema (0-100%) dinámico.
+* **Dark Mode UI:** Interfaz optimizada para entornos de baja luminosidad (SOCs).
 
-El sistema requiere un archivo `config.yaml` en la raíz. Usa este ejemplo completo:
+---
 
-```yaml
-system:
-  version: "2.0"
-  debug_mode: true
-
-monitoring:
-  # Carpetas a vigilar (El sistema añade 'Startup' de Windows automáticamente)
-  directories:
-    - "./test_folder"
-    - "C:/Users/TuUsuario/Documents/Secretos"
-  
-  # Archivo de logs (Solo para fallback, el sistema usa Win32 API principalmente)
-  log_file: "server_logs.txt"
-
-database:
-  name: "pysentinel.db"
-
-network:
-  # Procesos que pueden conectarse a Internet sin preguntar
-  whitelist:
-    - "Añadir los tuyos"
-
-security:
-  active_response: false  # false = Solo notifica | true = Permite matar procesos
-
-alerts:
-  telegram:
-    enabled: true
-    token: "TU_TOKEN_AQUI"
-    chat_id: "TU_ID_AQUI"
-```
-
-## 🚀 Ejecución
-
-### Modo Desarrollo (Python)
-1. Abrir terminal como Administrador.
-2. Ejecutar:
-   ```bash
-   python gui.py
-    ```
-
-### Modo Producción (.exe)
-1. Asegúrate de que config.yaml está en la misma carpeta que el .exe.
-2. Clic derecho en PySentinel_HIDS.exe.
-3. Seleccionar "Ejecutar como administrador".
-
-## 🛠️ Estructura del Proyecto
-
+## 🏗️ Estructura de Ficheros
 ```text
 PySentinel/
-├── gui.py                 # Controlador principal (MVC)
-├── config.yaml            # Configuración (Ignorado por Git)
+├── gui.py                  # Frontend (CustomTkinter + Matplotlib)
+├── config.yaml             # Configuración Maestra
 ├── pysentinel/
-│   ├── core/              # Base de datos & Config Loader
-│   ├── modules/
-│   │   ├── win_event_watcher.py  # API Windows Logs
-│   │   ├── network_monitor.py    # EDR NetWatch (ctypes)
-│   │   ├── usb_monitor.py        # USB Sentry
-│   │   └── fim.py                # File Integrity
-│   └── utils/             # Notificaciones, Logger, System Stats
-└── ...
+│   ├── core/               # DB Manager & Config Loader (Typed)
+│   ├── modules/            # Motores de Detección Independientes
+│   │   ├── anti_ransomware.py
+│   │   ├── process_monitor.py
+│   │   ├── registry_monitor.py
+│   │   ├── threat_intel.py
+│   │   └── ...
+│   └── utils/              # Generador PDF, Logger, Crypto
+└── requirements.txt        # Dependencias
+```
+## 📦 Instalación y Despliegue
+Prerrequisitos
+
+- Sistema Operativo: Windows 10/11 (Requiere acceso a Win32 API).
+
+- Python: 3.10 o superior.
+
+- Privilegios: Ejecución como Administrador obligatoria.
+
+Instalación Rápida (Dev)
+
+1. Clonar el repositorio:
+```Bash
+git clone [https://github.com/TU_USUARIO/PySentinel.git](https://github.com/TU_USUARIO/PySentinel.git)
+cd PySentinel
 ```
 
-## 🚢 Despliegue y Distribución
-
-### Opción A: Ejecutable Portable (Windows)
-El proyecto puede compilarse en un binario `.exe` independiente que incluye todas las dependencias:
+2. Instalar dependencias:
 ```bash
-# Generar el ejecutable
-pyinstaller --noconsole --onefile --collect-all customtkinter gui.py
+pip install -r requirements.txt
 ```
-El ejecutable resultante en dist/ requiere el archivo config.yaml en la misma carpeta para funcionar.
-
-### Opción B: Docker (Contenedor Linux)
-Para entornos aislados o despliegue en servidores, el proyecto incluye configuración Docker:
-```bash
-# Construir la imagen
-docker build -t pysentinel .
-
-# Ejecutar (Requiere servidor X11 configurado para GUI)
-docker run -v $(pwd)/config.yaml:/app/config.yaml pysentinel
+3. Ejecutar:
+```Bash
+python gui.py
 ```
 
+## ⚙️ Configuración
 
+El sistema se gobierna mediante config.yaml. Es crucial configurar el hash de administrador y la API Key para funcionalidad completa.
+YAML
+```yaml
+# config.yaml
 
+monitoring:
+  directories:
+    - "C:/Users/Admin/Documents/Confidencial"
+    - "C:/Proyectos"
 
-Disclaimer: Este software incluye capacidades de cierre de procesos ("Kill Switch"). Úselo bajo su propia responsabilidad y asegúrese de configurar correctamente la lista blanca (whitelist) para evitar interrupciones en el sistema.
+network:
+  whitelist:
+    - "chrome.exe"
+    - "python.exe"
+    - "code.exe"
 
-Desarrollado por Álvaro Fernández Ramos - Proyecto de Ingeniería de Ciberseguridad.
+security:
+  active_response: true                 # true = El EDR matará procesos hostiles
+  admin_password_hash: "TU_HASH_SHA512" # Generar con hashlib.sha512('pass').hexdigest()
+  virustotal_api_key: "TU_API_KEY_AQUI" # Opcional: Para análisis en la nube
+
+notifications:
+  telegram_token: ""
+  telegram_chat_id: ""
+```
+
+## 🔨 Compilación (Binario)
+
+Para distribuir PySentinel como una herramienta portable (.exe) sin dependencias externas:
+```powerShell
+
+pyinstaller --noconsole --onefile --name="PySentinel_EDR_v5.0_Enterprise" \
+    --hidden-import=PIL \
+    --hidden-import=matplotlib \
+    --collect-all=customtkinter \
+    --collect-all=matplotlib \
+    --add-data "config.example.yaml;." \
+    --icon=app_icon.ico \
+    gui.py
+```
+  - Nota: El ejecutable resultante en /dist debe ir siempre acompañado del archivo config.yaml para funcionar.
+
+## 🗺️ Roadmap
+
+[x] v3.0: Dashboard GUI y Monitorización Básica.
+
+[x] v4.0: FIM con Snapshots y Anti-Ransomware.
+
+[x] v4.3: Auditoría de Puertos y Procesos (Forensic).
+
+[x] v5.0: Threat Intel (VirusTotal), Persistencia Registro y Gráficos SOC.
+
+[ ] v6.0: Detección basada en reglas YARA (.yar).
+
+[ ] v6.5: Agente C2 remoto vía Telegram Bot bidireccional.
+
+## ⚠️ Disclaimer
+
+Uso Responsable: PySentinel es una herramienta de seguridad defensiva. Incluye capacidades de terminación de procesos ("Kill Switch"). El autor no se hace responsable de daños causados por configuraciones erróneas, pérdida de datos o interrupciones de servicio derivadas de su uso. Úselo bajo su propia responsabilidad y preferiblemente en entornos controlados.
+
+<div align="center">
+
+Desarrollado por Álvaro Fernández Ramos
+
+Senior Cybersecurity Engineering Project
+
+</div>
