@@ -1,25 +1,32 @@
 # pysentinel/modules/log_watcher.py
-import time
 import re
 import os
+from typing import Optional
+from pysentinel.core.database import DatabaseManager
 from pysentinel.utils.logger import Logger
-# No importamos el notificador aquí para evitar ciclos, lo recibimos como argumento
 
 class LogWatcher:
-    # AÑADIMOS notifier=None AL CONSTRUCTOR
-    def __init__(self, db_manager, log_path="server_logs.txt", notifier=None):
+    """
+    Monitors plain text log files (e.g., SSH auth logs, server logs)
+    using regex patterns to detect intrusion attempts.
+    """
+    def __init__(self, db_manager: DatabaseManager, log_path: str = "server_logs.txt", notifier=None):
         self.db = db_manager 
         self.log_path = log_path
         self.notifier = notifier
+        self.logger = Logger()
         self.current_position = 0
         
         if os.path.exists(self.log_path):
             self.current_position = os.path.getsize(self.log_path)
 
+        # Regex for SSH Brute Force (Example pattern)
         self.regex_bruteforce = re.compile(r"Failed password for (\w+) from ([\d\.]+)")
 
-    def monitor_changes(self):
-        if not os.path.exists(self.log_path): return
+    def monitor_changes(self) -> None:
+        """Reads new lines appended to the monitored log file."""
+        if not os.path.exists(self.log_path): 
+            return
 
         with open(self.log_path, "r") as f:
             f.seek(self.current_position)
@@ -29,17 +36,16 @@ class LogWatcher:
             for line in lines:
                 self._analyze_line(line)
 
-    def _analyze_line(self, line):
+    def _analyze_line(self, line: str) -> None:
         match = self.regex_bruteforce.search(line)
         if match:
             user = match.group(1)
             ip = match.group(2)
             
-            msg = f"Intrusión SSH detectada - User: {user} IP: {ip}"
+            msg = f"SSH Intrusion Attempt - User: {user} IP: {ip}"
             
-            # 1. Log consola
-            # 2. Alerta Telegram
-            if self.notifier: self.notifier.send_alert(msg)
+            self.logger.warning(msg)
+            self.db.log_event("AUTH_FAILURE", msg, "CRITICAL")
             
-            # 3. GUARDAR EN HISTORIAL (NUEVO)
-            self.db.log_event("AUTH", msg, "CRITICAL")
+            if self.notifier: 
+                self.notifier.send_alert(msg)

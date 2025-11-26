@@ -1,10 +1,14 @@
-# ARCHIVO: pysentinel/core/config.py
+# pysentinel/core/config.py
 import yaml
 import os
 import sys
 from typing import List, Dict, Any
 
 class Config:
+    """
+    Loads and validates configuration from 'config.yaml'.
+    Includes default fallback values and OS-specific path adjustments.
+    """
     def __init__(self, config_path: str = "config.yaml") -> None:
         self.config_path: str = config_path
         self.data: Dict[str, Any] = self._load_config()
@@ -24,6 +28,7 @@ class Config:
 
     @property
     def directories(self) -> List[str]:
+        """Returns list of directories to monitor (FIM). Adds Startup folder on Windows."""
         dirs: List[str] = self.data.get("monitoring", {}).get("directories", [])
         if sys.platform == "win32":
             try:
@@ -40,10 +45,6 @@ class Config:
     def network_whitelist(self) -> List[str]:
         default = ["chrome.exe", "firefox.exe", "msedge.exe", "svchost.exe", "python.exe"]
         return self.data.get("network", {}).get("whitelist", default)
-
-    @property
-    def active_response(self) -> bool:
-        return bool(self.data.get("security", {}).get("active_response", False))
 
     @property
     def admin_hash(self) -> str:

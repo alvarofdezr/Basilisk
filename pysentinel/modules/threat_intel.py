@@ -1,50 +1,52 @@
 # pysentinel/modules/threat_intel.py
 import requests
 import time
-import json
+from typing import Optional, Dict
 
 class ThreatIntel:
-    def __init__(self, api_key):
+    """
+    Interface for VirusTotal API v3.
+    Includes local caching to minimize API quota usage.
+    """
+    def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://www.virustotal.com/api/v3/files/"
-        self.cache = {} # Guardamos resultados para no gastar peticiones a la API
+        self.cache: Dict[str, Dict] = {} 
 
-    def check_hash(self, file_hash):
+    def check_hash(self, file_hash: str) -> Optional[Dict]:
         """
-        Consulta el Hash en VirusTotal.
-        Retorna: (malicious_count, total_engines, link)
+        Queries VirusTotal for file reputation.
+        Returns: Dict with malicious count and total engines.
         """
-        if not self.api_key or self.api_key == "TU_API_KEY_AQUI":
-            return None # No configurado
+        if not self.api_key:
+            return None
 
-        # 1. Mirar caché local primero (Ahorro de API y tiempo)
+        # Check Cache
         if file_hash in self.cache:
             return self.cache[file_hash]
 
         headers = {"x-apikey": self.api_key}
         
         try:
-            # Hacemos la petición GET
-            response = requests.get(self.base_url + file_hash, headers=headers, timeout=5)
+            response = requests.get(f"{self.base_url}{file_hash}", headers=headers, timeout=5)
             
             if response.status_code == 200:
                 data = response.json()
-                stats = data['data']['attributes']['last_analysis_stats']
-                malicious = stats['malicious']
-                total = sum(stats.values())
-                link = data['data']['links']['self'] # Link al reporte
+                stats = data.get('data', {}).get('attributes', {}).get('last_analysis_stats', {})
                 
-                result = {"malicious": malicious, "total": total, "scan_date": time.time()}
+                result = {
+                    "malicious": stats.get('malicious', 0), 
+                    "total": sum(stats.values()), 
+                    "scan_date": time.time()
+                }
                 self.cache[file_hash] = result
                 return result
             
             elif response.status_code == 404:
-                # El archivo es tan nuevo (o único) que VirusTotal no lo conoce.
-                # ¡ESTO ES SOSPECHOSO EN SÍ MISMO!
+                # Hash not found (Potential Zero-day or unique file)
                 return {"malicious": 0, "total": 0, "status": "UNKNOWN_HASH"}
                 
-        except Exception as e:
-            print(f"[THREAT INTEL ERROR] {e}")
-            return None
+        except Exception:
+            pass
             
         return None

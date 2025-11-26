@@ -1,8 +1,13 @@
 # pysentinel/utils/logger.py
 import logging
 import sys
+import os
 
 class Logger:
+    """
+    Singleton Logger class. 
+    Configures stream handling (UTF-8) and file rotation.
+    """
     _instance = None
 
     def __new__(cls):
@@ -15,38 +20,29 @@ class Logger:
         self.logger = logging.getLogger("PySentinel")
         self.logger.setLevel(logging.DEBUG)
         
-        # Evitar duplicar handlers si se reinicia
         if self.logger.hasHandlers():
             self.logger.handlers.clear()
 
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
 
-        # --- FIX 1: SOLUCIÓN PARA CONSOLA (CRITICAL FIX) ---
-        # En Windows, forzamos la salida estándar a UTF-8 para soportar emojis sin crashear
+        # Windows Console Encoding Support
         if sys.platform == "win32":
             try:
                 sys.stdout.reconfigure(encoding='utf-8')
             except Exception:
-                pass # Si falla por versión antigua de Python, lo ignoramos
+                pass
 
+        # Console Handler
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        # --- FIX 2: SOLUCIÓN PARA ARCHIVO ---
-        # Añadimos encoding='utf-8' para poder escribir emojis en el log
+        # File Handler
         file_handler = logging.FileHandler("pysentinel_audit.log", encoding='utf-8')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
-    def info(self, msg):
-        self.logger.info(msg)
-
-    def warning(self, msg):
-        self.logger.warning(msg)
-
-    def error(self, msg):
-        self.logger.error(msg)
-        
-    def success(self, msg):
-        self.logger.info(f"[SUCCESS] {msg}")
+    def info(self, msg): self.logger.info(msg)
+    def warning(self, msg): self.logger.warning(msg)
+    def error(self, msg): self.logger.error(msg)
+    def success(self, msg): self.logger.info(f"[SUCCESS] {msg}")

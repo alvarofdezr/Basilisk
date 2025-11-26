@@ -1,29 +1,33 @@
 # pysentinel/core/active_response.py
 import psutil
-import logging
+from pysentinel.utils.logger import Logger
 
 def kill_process_by_pid(pid: int) -> bool:
     """
-    Intenta terminar un proceso malicioso dado su PID.
-    Retorna True si tuvo éxito, False si falló.
+    Attempts to terminate a malicious process by its PID.
+    Escalates from SIGTERM (soft kill) to SIGKILL (hard kill) if necessary.
+    
+    Returns:
+        bool: True if operation successful, False otherwise.
     """
+    logger = Logger()
     try:
         process = psutil.Process(pid)
-        process.terminate()  # Intento suave primero
+        process.terminate()  # Attempt graceful shutdown
         try:
             process.wait(timeout=3)
         except psutil.TimeoutExpired:
-            process.kill()  # Forzar cierre (Kill -9)
+            process.kill()  # Force execution halt (Kill -9)
         
-        logging.info(f"[EDR] Amenaza neutralizada. PID: {pid}")
+        logger.success(f"Threat neutralized. PID {pid} terminated.")
         return True
         
     except psutil.NoSuchProcess:
-        logging.warning(f"[EDR] El proceso {pid} ya no existe.")
+        logger.warning(f"Process {pid} no longer exists.")
         return False
     except psutil.AccessDenied:
-        logging.error(f"[EDR] Acceso denegado al intentar matar PID {pid}. ¿Faltan permisos de Admin?")
+        logger.error(f"Access denied terminating PID {pid}. Admin privileges required.")
         return False
     except Exception as e:
-        logging.error(f"[EDR] Error desconocido al matar proceso: {e}")
+        logger.error(f"Unexpected error terminating process: {e}")
         return False
