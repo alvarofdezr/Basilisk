@@ -1,16 +1,21 @@
 # pysentinel/agent_core.py
+import sys
 import time
 import requests
 import platform
-import logging
 import os
 import hashlib
-from typing import Dict, Any, Optional
+from typing import Dict, Any
+
+AGENT_DIR = os.path.dirname(__file__)
+PROJECT_ROOT = os.path.abspath(os.path.join(AGENT_DIR, '..'))
+sys.path.insert(0, PROJECT_ROOT)
 
 # Core Imports
 from pysentinel.core.config import Config
 from pysentinel.core.database import DatabaseManager
 from pysentinel.core.active_response import kill_process_by_pid
+from pysentinel.utils.system_monitor import get_system_metrics
 from pysentinel.utils.logger import Logger
 from pysentinel.utils.notifier import TelegramNotifier
 
@@ -41,18 +46,19 @@ class C2Client:
 
     def send_heartbeat(self, status: str) -> Dict[str, Any]:
         """Sends periodic keep-alive signal and retrieves pending commands."""
+        system_metrics = get_system_metrics() 
         try:
-            payload = {
-                "agent_id": self.agent_id,
-                "hostname": HOSTNAME,
+            res = self.session.post(f"{self.server_url}/heartbeat", json={
+                "agent_id": self.agent_id, 
+                "hostname": HOSTNAME, 
                 "os": platform.system(),
-                "status": status,
-                "timestamp": time.time()
-            }
-            res = self.session.post(f"{self.server_url}/heartbeat", json=payload, timeout=3)
+                "status": status, 
+                "timestamp": time.time(),
+                "cpu_percent": system_metrics["cpu"], 
+                "ram_percent": system_metrics["ram"]
+            }, timeout=3)
             return res.json() if res.status_code == 200 else {}
-        except Exception: 
-            return {}
+        except: return {}
 
     def send_alert(self, msg: str, severity: str = "WARNING", alert_type: str = "GENERAL") -> None:
         """Transmits security alerts to the C2 server."""
