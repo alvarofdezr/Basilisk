@@ -138,6 +138,7 @@
             <div class="nav-link-custom"><i class="fa-solid fa-sitemap me-3"></i>Topology</div>
             <div class="nav-link-custom"><i class="fa-solid fa-file-contract me-3"></i>Audit Logs</div>
             <div class="nav-link-custom"><i class="fa-solid fa-sliders me-3"></i>Settings</div>
+            <div class="nav-link-custom text-danger mt-4" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-3"></i>Logout</div>
         </div>
         <div class="mt-auto p-4 border-top border-secondary">
             <div class="d-flex align-items-center justify-content-between">
@@ -532,6 +533,12 @@
             });
             html += `</tbody></table>`;
             document.getElementById('modal-content').innerHTML = html;
+        }
+        
+        // En el bloque <script> de index.html
+        async function logout() {
+            await fetch('/api/v1/auth/logout', {method: 'POST'});
+            window.location.href = '/login';
         }
 
     </script>
