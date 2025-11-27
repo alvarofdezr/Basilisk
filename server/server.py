@@ -87,7 +87,7 @@ async def auth_middleware(request: Request, call_next):
         if path == "/" or path == "/index.html":
             return RedirectResponse(url="/login")
         if path.startswith("/api/v1/admin"):
-             return JSONResponse(status_code=403, content={"error": "Unauthorized"})
+            return JSONResponse(status_code=403, content={"error": "Unauthorized"})
 
     response = await call_next(request)
     return response

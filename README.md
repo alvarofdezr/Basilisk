@@ -2,15 +2,14 @@
 
 <div align="center">
 
-![Logo](https://img.shields.io/badge/PySentinel-EDR_v5.0-0052cc?style=for-the-badge&logo=security&logoColor=white)
+![Logo](https://img.shields.io/badge/PySentinel-EDR_v6.2-0052cc?style=for-the-badge&logo=security&logoColor=white)
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Production_Ready-success?style=flat-square)]()
-[![Security](https://img.shields.io/badge/Threat_Intel-VirusTotal-blueviolet?style=flat-square&logo=virustotal&logoColor=white)](https://www.virustotal.com/)
+[![Architecture](https://img.shields.io/badge/Architecture-Client%2FServer_C2-blue?style=flat-square)](https://en.wikipedia.org/wiki/Command_and_control_(malware))
+[![Status](https://img.shields.io/badge/Status-Stable_Persistence-success?style=flat-square)]()
+[![Database](https://img.shields.io/badge/Database-SQLite_Persistent-0073AA?style=flat-square&logo=sqlite&logoColor=white)]()
 
-**Un sistema de Detección y Respuesta en el Endpoint (EDR) de próxima generación, diseñado para la monitorización forense, defensa activa y análisis de amenazas en tiempo real.**
+**Sistema de Detección y Respuesta en el Endpoint (EDR) distribuido. Combina la monitorización forense en el Agente con un Servidor C2 persistente y un Dashboard SOC moderno.**
 
 [Reportar Bug](https://github.com/tu_usuario/PySentinel/issues) · [Solicitar Feature](https://github.com/tu_usuario/PySentinel/issues)
 
@@ -21,61 +20,60 @@
 ## 📋 Tabla de Contenidos
 - [Resumen del Proyecto](#-resumen-del-proyecto)
 - [Características Principales](#-características-principales)
-- [Arquitectura del Sistema](#-arquitectura-del-sistema)
+- [Arquitectura del Sistema (v6.2)](#-arquitectura-del-sistema-v62)
 - [Instalación y Despliegue](#-instalación-y-despliegue)
 - [Configuración](#-configuración)
-- [Compilación (Binario)](#-compilación-binario)
-- [Roadmap](#-roadmap)
-- [Disclaimer](#-disclaimer)
+- [Próximos Pasos (Roadmap)](#-próximos-pasos-roadmap)
 
 ---
 
 ## 🔭 Resumen del Proyecto
 
-**PySentinel v5.0** no es un simple antivirus. Es una suite de ciberseguridad modular que implementa principios de **Zero Trust** y **Defensa en Profundidad**. 
+**PySentinel v6.2** marca la transición a una arquitectura de **Servidor de Mando y Control (C2)** persistente. El sistema ha evolucionado de una herramienta local a una solución distribuida capaz de gestionar múltiples endpoints (Agentes) desde una interfaz web centralizada.
 
-Utilizando heurística avanzada, trampas tipo "Canary" y análisis de inteligencia de amenazas en la nube, PySentinel protege estaciones de trabajo críticas contra Ransomware, persistencia en el registro y exfiltración de datos, ofreciendo un **SOC Dashboard** visual para la toma de decisiones inmediata.
+El **Servidor C2** utiliza una base de datos **SQLite persistente (SQLAlchemy)** para garantizar que **ningún log de incidente ni estado de agente se pierda** tras un reinicio. La autenticación es unificada (**SHA-512**) para proteger tanto el acceso al Dashboard como los comandos críticos.
 
 ---
 
 ## 🚀 Características Principales
 
-### 🛡️ Defensa Activa & Anti-Ransomware
-* **Canary Sentry:** Despliegue de señuelos criptográficos ocultos. Detección de modificación/cifrado en <5ms.
-* **Kill Switch Automatizado:** Terminación forzosa de procesos (`SIGKILL`) que violan políticas de red o integridad.
-* **Registry Monitor:** Vigilancia de claves de persistencia (`Run`, `RunOnce`) para detectar Backdoors y RATs.
+### 🛡️ Mando y Control (C2) & Persistencia
+* **Arquitectura Distribuida:** Servidor C2 (FastAPI) y Agente EDR (Python 3.10+).
+* **Persistencia de Datos:** Logs e historial de Agentes se almacenan en `c2_server.db` (SQLite/SQLAlchemy).
+* **Seguridad Unificada:** Autenticación de acceso web y comandos críticos protegida por **SHA-512** centralizado en `config.yaml`.
+* **Respuesta Remota:** Capacidad de enviar órdenes `KILL:PID` desde el Dashboard.
 
-### 🔍 Análisis Forense & Threat Intel
-* **Integración VirusTotal:** Consulta de hashes en tiempo real contra +70 motores antivirus (API v3).
-* **Auditoría de Procesos:** Detección de *Masquerading* (falsos procesos de sistema) y ejecución desde directorios temporales (`%TEMP%`).
-* **Port Scanner:** Monitorización en tiempo real de puertos *Listening* (TCP/UDP) y asociación de PID/Servicio.
+### 🔍 Detección Forense Avanzada
+* **Canary Sentry:** Detección de modificación/cifrado en tiempo real (anti-ransomware).
+* **Auditoría de Procesos:** Detección de *Masquerading* y ejecución desde `%TEMP%`.
+* **Port/Net Monitor:** Vigilancia de conexiones salientes y puertos *Listening*.
+* **FIM 2.0:** Algoritmo de Hashing inteligente (Cabecera/Pie) para escaneos rápidos.
 
-### 📊 FIM 2.0 (File Integrity Monitor)
-* **Smart Hashing Algorithm:** Hashing híbrido (Cabecera/Pie) para archivos >50MB, permitiendo escaneos de Terabytes sin latencia.
-* **Baseline Snapshots:** Creación de líneas base de integridad protegidas criptográficamente (SHA-512).
-
-### 🖥️ SOC Dashboard
-* **Métricas en Vivo:** Gráficos de anillos y barras (`matplotlib`) para visualización de incidentes.
-* **Health Score:** Algoritmo de puntuación de salud del sistema (0-100%) dinámico.
-* **Dark Mode UI:** Interfaz optimizada para entornos de baja luminosidad (SOCs).
+### 🖥️ SOC Dashboard (v6.1.1)
+* **Diseño SOC:** Interfaz modernizada con vista de Agentes tipo Heatmap.
+* **Métricas en Vivo:** Visualización de **CPU y RAM** en tiempo real en las tarjetas de Agente.
+* **Inspección Tabular:** Navegación por pestañas **(Procesos / Puertos)** dentro del modal de inspección del agente.
 
 ---
 
-## 🏗️ Estructura de Ficheros
-```text
+## 🏗️ Arquitectura del Sistema (v6.2)
+
+El proyecto está separado en dos aplicaciones distintas que consumen un paquete de lógica compartida (`pysentinel`):
+
+```plaintext
 PySentinel/
-├── gui.py                  # Frontend (CustomTkinter + Matplotlib)
-├── config.yaml             # Configuración Maestra
-├── pysentinel/
-│   ├── core/               # DB Manager & Config Loader (Typed)
-│   ├── modules/            # Motores de Detección Independientes
-│   │   ├── anti_ransomware.py
-│   │   ├── process_monitor.py
-│   │   ├── registry_monitor.py
-│   │   ├── threat_intel.py
-│   │   └── ...
-│   └── utils/              # Generador PDF, Logger, Crypto
-└── requirements.txt        # Dependencias
+├── agent/                      # Cliente EDR: Colecta datos, obedece comandos.
+│   └── agent_core.py           
+├── server/                     # Servidor C2: App FastAPI, gestión de logs y BBDD.
+│   ├── server.py               
+│   ├── server_persistence.py   # Modelos ORM (SQLAlchemy)
+│   ├── c2_server.db            # Base de Datos Persistente
+│   └── static/                 # Dashboard Web (index.html, login.html)
+├── pysentinel/                 # PAQUETE DE LÓGICA COMPARTIDA
+│   ├── core/                   # (Config, DB Manager local)
+│   └── modules/                # (FIM, Anti-Ransomware, Threat Intel)
+├── config.yaml                 # Configuración Maestra Única
+└── requirements.txt
 ```
 ## 📦 Instalación y Despliegue
 Prerrequisitos
@@ -86,22 +84,32 @@ Prerrequisitos
 
 - Privilegios: Ejecución como Administrador obligatoria.
 
-Instalación Rápida (Dev)
-
 1. Clonar el repositorio:
 ```Bash
 git clone [https://github.com/TU_USUARIO/PySentinel.git](https://github.com/TU_USUARIO/PySentinel.git)
 cd PySentinel
 ```
 
-2. Instalar dependencias:
-```bash
-pip install -r requirements.txt
-```
-3. Ejecutar:
+2. Configuración de Seguridad
+- Abre config.yaml
+- Genera el hash SHA-512 de tu contraseña maestra:
 ```Bash
-python gui.py
+import hashlib
+print(hashlib.sha512("tu_password".encode()).hexdigest())
 ```
+
+3. Iniciar el Servidor C2
+- Ejecuta Uvicorn desde la raíz del proyecto para resolver correctamente las rutas de importación:
+```bash
+uvicorn server.server:app --reload --host 0.0.0.0 --port 8000
+```
+4. Desplegar y Conectar el Agente
+- Abre una segunda terminal (como administrador).
+- Ejecuta el Agente (el Heartbeat se conectará automáticamente):
+```Bash
+python agent/agent_core.py
+```
+- Accede al Dashboard: http://127.0.0.1:8000
 
 ## ⚙️ Configuración
 
@@ -155,11 +163,17 @@ pyinstaller --noconsole --onefile --name="PySentinel_EDR_v5.0_Enterprise" \
 
 [x] v4.3: Auditoría de Puertos y Procesos (Forensic).
 
-[x] v5.0: Threat Intel (VirusTotal), Persistencia Registro y Gráficos SOC.
+[x] v5.0: EDR Local y Gráficos SOC.
 
-[ ] v6.0: Detección basada en reglas YARA (.yar).
+[x] v6.0: Arquitectura C2 Distribuida.
 
-[ ] v6.5: Agente C2 remoto vía Telegram Bot bidireccional.
+[x] v6.2: Persistencia SQL y Auth Unificada (Estado Actual).
+
+[ ] v6.3: Live Shell Interactiva: Implementar comandos bidireccionales de baja latencia (ej. whoami, netstat) en el modal de inspección.
+
+[ ] v6.4: Empaquetado del Agente a .exe (PyInstaller) para despliegue sin dependencias.
+
+[ ] v7.0: Detección de Amenazas basada en Reglas YARA.
 
 ## ⚠️ Disclaimer
 
