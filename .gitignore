@@ -47,6 +47,8 @@ reporte_seguridad_*.csv
 # config.yaml (Tiene tu hash y rutas privadas -> IGNORAR)
 config.yaml
 server/c2_server.db
+cert.pem
+key.pem
 # config.example.yaml (Plantilla vacía -> SÍ SUBIR)
 # (No lo ponemos aquí para que git lo detecte)
 

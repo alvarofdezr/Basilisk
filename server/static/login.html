@@ -67,7 +67,7 @@
 
     <div class="login-card">
         <div class="brand">
-            <i class="fa-solid fa-shield-halved me-2"></i>PySentinel
+            <i class="fa-solid fa-shield-halved me-2"></i>PySentinel C2
         </div>
 
         <div class="mb-3">
@@ -86,6 +86,16 @@
     </div>
 
     <script>
+        // --- 1. AUTO-CORRECCIÓN DE DOMINIO ---
+        // Si el usuario entra por IP, lo mandamos a localhost para que coincida con el certificado
+        if (window.location.hostname === '127.0.0.1') {
+            window.location.href = window.location.href.replace('127.0.0.1', 'localhost');
+        }
+
+        // --- 2. CONFIGURACIÓN HTTPS ---
+        // Alineado con index.html para evitar problemas de sesión
+        const LOGIN_ENDPOINT = "https://localhost:8443/api/v1/auth/login";
+
         async function doLogin() {
             const u = document.getElementById('username').value;
             const p = document.getElementById('password').value;
@@ -102,15 +112,20 @@
             errorDiv.innerText = "";
 
             try {
-                const res = await fetch('/api/v1/auth/login', {
+                const res = await fetch(LOGIN_ENDPOINT, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username: u, password: p})
                 });
 
                 if (res.status === 200) {
-                    // Login correcto, redirigimos al dashboard
-                    window.location.href = '/'; 
+                    // Login correcto, redirigimos al dashboard forzando localhost
+                    const data = await res.json();
+                    if(data.redirect) {
+                        window.location.href = data.redirect; // Normalmente "/"
+                    } else {
+                        window.location.href = '/';
+                    }
                 } else {
                     errorDiv.innerText = "Credenciales incorrectas.";
                     btn.disabled = false;
@@ -118,13 +133,13 @@
                 }
             } catch(e) {
                 console.error(e);
-                errorDiv.innerText = "Error de conexión con el servidor.";
+                errorDiv.innerText = "Error de conexión (Revise Certificado SSL).";
                 btn.disabled = false;
                 btn.innerText = "Iniciar Sesión";
             }
         }
 
-        // Enter key support
+        // Soporte tecla Enter
         document.getElementById('password').addEventListener('keypress', function (e) { if (e.key === 'Enter') doLogin(); });
     </script>
 </body>
