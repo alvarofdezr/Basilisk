@@ -1,12 +1,12 @@
 # server/server.py
 """
 PySentinel EDR - Command & Control (C2) Server
-Versión: 6.2 (Stable Enterprise Architecture)
+Versión: 6.4 (Stable Enterprise Architecture)
 
-Refactorización Completa:
-- Security Hardening: HTTPS/TLS Obligatorio (Puerto 8443) [FIX CRÍTICO #5]
-- Rate Limiting y Session Management [FIX CRÍTICO #1, #2]
-- Configuración centralizada
+CHANGELOG v6.4 Final:
+- [FIX #8] Persistencia de Comandos: COMMAND_QUEUE migrado a SQL.
+- [FIX #7] Heartbeat Throttling (Mantenido).
+- [FIX #5] HTTPS/TLS (Mantenido).
 """
 
 import sys
@@ -34,30 +34,24 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, asc
 
 from pysentinel.core.config import Config
-from server_persistence import init_db, get_db, Agent, IncidentLog
+from server_persistence import init_db, get_db, Agent, IncidentLog, PendingCommand
 
-# --- CARGA DE CONFIGURACIÓN Y SECRETOS ---
+# --- CARGA DE CONFIGURACIÓN ---
 try:
     CONFIG = Config(config_path=os.path.join(PROJECT_ROOT, 'config.yaml'))
     
-    ADMIN_HASH = getattr(CONFIG, 'admin_hash', None)
-    if not ADMIN_HASH:
-        print("[WARNING] Hash no encontrado en config. Usando default de emergencia.")
-        ADMIN_HASH = hashlib.sha512("admin123".encode()).hexdigest()
-
+    ADMIN_HASH = getattr(CONFIG, 'admin_hash', None) or hashlib.sha512("admin123".encode()).hexdigest()
     ADMIN_USER = getattr(CONFIG, 'admin_user', "admin")
     SECRET_KEY = getattr(CONFIG, 'secret_key', "SUPER_SECRET_SESSION_KEY_DEFAULT")
-
-    # Políticas de Seguridad
     MAX_LOGIN_ATTEMPTS = getattr(CONFIG, 'max_login_attempts', 5)
     LOCKOUT_TIME = getattr(CONFIG, 'lockout_time', 300)
     SESSION_LIFETIME_HOURS = getattr(CONFIG, 'session_lifetime', 8)
 
 except Exception as e:
-    print(f"[ERROR] Fallo crítico cargando configuración: {e}. Usando valores por defecto.")
+    print(f"[ERROR] Config fallback: {e}")
     ADMIN_HASH = hashlib.sha512("admin123".encode()).hexdigest()
     ADMIN_USER = "admin"
     SECRET_KEY = "EMERGENCY_KEY"
@@ -67,20 +61,24 @@ except Exception as e:
 
 # --- ESTRUCTURAS EN MEMORIA ---
 login_attempts: Dict[str, List[datetime]] = defaultdict(list)
-COMMAND_QUEUE: Dict[str, List[Any]] = {}
+# COMMAND_QUEUE removido: ahora usamos BBDD
 TEMPORARY_REPORTS: Dict[str, Dict[str, Any]] = {}
+
+# Throttling
+MIN_HEARTBEAT_INTERVAL = 1.0 
+last_heartbeats: Dict[str, datetime] = defaultdict(lambda: datetime.min)
+
 STATIC_FILES_DIR = os.path.join(SERVER_DIR, "static")
 
-# --- INICIALIZACIÓN APP ---
-app = FastAPI(title="PySentinel C2", version="6.2 Secure")
+# --- APP ---
+app = FastAPI(title="PySentinel C2", version="6.4 Persistent")
 
 @app.on_event("startup")
 def on_startup():
     init_db()
-    print(f"✨ [SYSTEM] C2 Server Online (HTTPS). User: {ADMIN_USER}")
+    print(f"✨ [SYSTEM] C2 Server Online (HTTPS + SQL Persistence). User: {ADMIN_USER}")
 
-# --- MIDDLEWARES DE SEGURIDAD ---
-
+# --- MIDDLEWARE ---
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
     public_routes = [
@@ -95,9 +93,7 @@ async def security_middleware(request: Request, call_next):
     user = request.session.get("user")
     expires_at = request.session.get("expires_at")
     
-    if not user:
-        return _handle_unauthorized(path)
-
+    if not user: return _handle_unauthorized(path)
     if expires_at and datetime.utcnow().timestamp() > expires_at:
         request.session.clear()
         return _handle_unauthorized(path)
@@ -105,39 +101,31 @@ async def security_middleware(request: Request, call_next):
     return await call_next(request)
 
 def _handle_unauthorized(path: str):
-    if path == "/" or path == "/index.html":
-        return RedirectResponse(url="/login")
+    if path == "/" or path == "/index.html": return RedirectResponse(url="/login")
     return JSONResponse(status_code=403, content={"error": "Unauthorized"})
 
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=True, same_site='lax')
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# --- ENDPOINTS ---
-
+# --- AUTH ---
 @app.get("/login")
-async def login_page():
-    return FileResponse(os.path.join(STATIC_FILES_DIR, 'login.html'))
+async def login_page(): return FileResponse(os.path.join(STATIC_FILES_DIR, 'login.html'))
 
 @app.post("/api/v1/auth/login")
 async def login(request: Request):
     client_ip = request.client.host
     now = datetime.utcnow()
-
-    # Rate Limiting
     login_attempts[client_ip] = [t for t in login_attempts[client_ip] if now - t < timedelta(seconds=LOCKOUT_TIME)]
 
     if len(login_attempts[client_ip]) >= MAX_LOGIN_ATTEMPTS:
-        remaining = LOCKOUT_TIME - (now - login_attempts[client_ip][0]).seconds
-        return JSONResponse(status_code=429, content={"status": "error", "message": f"Locked out. Retry in {remaining}s"})
+        return JSONResponse(status_code=429, content={"status": "error", "message": "Locked out."})
 
     data = await request.json()
-    
     if data.get("username") != ADMIN_USER:
         login_attempts[client_ip].append(now)
-        return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid credentials"})
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid"})
 
     input_hash = hashlib.sha512(data.get("password", "").encode()).hexdigest()
-    
     if input_hash == ADMIN_HASH:
         if client_ip in login_attempts: del login_attempts[client_ip]
         request.session["user"] = ADMIN_USER
@@ -145,14 +133,14 @@ async def login(request: Request):
         return {"status": "ok", "redirect": "/"}
     
     login_attempts[client_ip].append(now)
-    return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid credentials"})
+    return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid"})
 
 @app.post("/api/v1/auth/logout")
 async def logout(request: Request):
     request.session.clear()
     return {"status": "ok"}
 
-# --- API AGENTE ---
+# --- AGENT CORE ---
 
 class HeartbeatData(BaseModel):
     agent_id: str
@@ -166,26 +154,36 @@ class HeartbeatData(BaseModel):
 @app.post("/api/v1/heartbeat")
 async def hb(data: HeartbeatData, db: Session = Depends(get_db)):
     aid = data.agent_id
-    agent = db.query(Agent).filter(Agent.agent_id == aid).first()
+    now = datetime.utcnow()
 
+    # Throttling
+    if (now - last_heartbeats[aid]).total_seconds() < MIN_HEARTBEAT_INTERVAL:
+        return JSONResponse(status_code=429, content={"error": "Throttling active"})
+    last_heartbeats[aid] = now
+
+    # Update Agent Info
+    agent = db.query(Agent).filter(Agent.agent_id == aid).first()
     if agent:
-        agent.last_seen = datetime.utcnow()
+        agent.last_seen = now
         agent.hostname = data.hostname
         agent.os_info = data.os
         agent.cpu_percent = data.cpu_percent
         agent.ram_percent = data.ram_percent
     else:
-        agent = Agent(agent_id=aid, hostname=data.hostname, os_info=data.os,
-                        cpu_percent=data.cpu_percent, ram_percent=data.ram_percent)
-        db.add(agent)
-    db.commit()
-
-    cmd = None
-    if aid in COMMAND_QUEUE and COMMAND_QUEUE[aid]:
-        cmd = COMMAND_QUEUE[aid].pop(0)
-        if not COMMAND_QUEUE[aid]: del COMMAND_QUEUE[aid]
+        db.add(Agent(agent_id=aid, hostname=data.hostname, os_info=data.os,
+                     cpu_percent=data.cpu_percent, ram_percent=data.ram_percent))
     
-    return {"status": "ok", "command": cmd}
+    # [FIX #8] Fetch pending commands from DB (FIFO)
+    cmd_str = None
+    pending_cmd = db.query(PendingCommand).filter(PendingCommand.agent_id == aid)\
+                    .order_by(asc(PendingCommand.issued_at)).first()
+    
+    if pending_cmd:
+        cmd_str = pending_cmd.command
+        db.delete(pending_cmd) # Remove from queue once picked up
+    
+    db.commit()
+    return {"status": "ok", "command": cmd_str}
 
 class AlertData(BaseModel):
     agent_id: str
@@ -201,7 +199,7 @@ async def alrt(data: AlertData, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# --- DASHBOARD & ADMIN ---
+# --- DASHBOARD & COMMANDS ---
 
 @app.get("/api/v1/dashboard")
 def dash(db: Session = Depends(get_db)):
@@ -214,16 +212,13 @@ def dash(db: Session = Depends(get_db)):
             "os": a.os_info, "cpu_percent": a.cpu_percent, "ram_percent": a.ram_percent
         } for a in agents
     }
-    
     logs = db.query(IncidentLog).order_by(desc(IncidentLog.received_at)).limit(50).all()
-    
     return {"agents": agents_data, "recent_incidents": [{
         "received_at": l.received_at.isoformat(), 
         "agent_id": l.agent_id, 
-        "message": l.message,                    
-        "severity": l.severity,                
-        "type": l.type
+        "message": l.message, "severity": l.severity, "type": l.type
     } for l in logs]}
+
 @app.post("/api/v1/report/{dtype}")
 async def rep(dtype: str, req: Request):
     data = await req.json()
@@ -239,13 +234,21 @@ def get_report(agent_id: str, dtype: str):
     raise HTTPException(status_code=404, detail="Report not found")
 
 @app.post("/api/v1/admin/command")
-async def cmd(data: dict):
+async def cmd(data: dict, db: Session = Depends(get_db)):
+    """
+    [FIX #8] Persist command to DB instead of memory.
+    """
     tgt, cmd_str = data["target_agent_id"], data["command"]
-    if tgt not in COMMAND_QUEUE: COMMAND_QUEUE[tgt] = []
-    COMMAND_QUEUE[tgt].append(cmd_str)
+    
+    # Save to DB
+    new_cmd = PendingCommand(agent_id=tgt, command=cmd_str if isinstance(cmd_str, str) else str(cmd_str))
+    db.add(new_cmd)
+    db.commit()
+    
+    print(f"⚙️ [DB] Comando persistido para {tgt}: {cmd_str}")
     return {"status": "queued", "command": cmd_str}
 
-# --- STATIC & STARTUP ---
+# --- STATIC ---
 app.mount("/static", StaticFiles(directory=STATIC_FILES_DIR), name="static")
 
 @app.get("/")
@@ -257,15 +260,8 @@ if __name__ == "__main__":
     key_path = "key.pem" if os.path.exists("key.pem") else os.path.join(PROJECT_ROOT, "key.pem")
     
     if not os.path.exists(cert_path) or not os.path.exists(key_path):
-        print("❌ ERROR: No se encontraron certificados SSL (cert.pem, key.pem).")
-        print("   Ejecuta: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes")
+        print("❌ ERROR: Certificados SSL no encontrados.")
         sys.exit(1)
 
-    print(f"🔒 Iniciando servidor seguro en port 8443...")
-    uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=8443, 
-        ssl_keyfile=key_path, 
-        ssl_certfile=cert_path
-    )
+    print(f"🔒 Server Secure v6.4 (Port 8443)...")
+    uvicorn.run(app, host="0.0.0.0", port=8443, ssl_keyfile=key_path, ssl_certfile=cert_path)

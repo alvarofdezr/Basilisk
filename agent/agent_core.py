@@ -43,6 +43,7 @@ from pysentinel.modules.process_monitor import ProcessMonitor
 from pysentinel.modules.fim import FileIntegrityMonitor
 from pysentinel.modules.threat_intel import ThreatIntel
 from pysentinel.modules.anti_ransomware import CanarySentry
+from pysentinel.modules.yara_scanner import YaraScanner
 
 # --- CONSTANTES DE CONFIGURACIÓN ---
 # [SEGURIDAD CRÍTICA] Cambio a HTTPS y puerto seguro por defecto.
@@ -133,6 +134,7 @@ class PySentinelAgent:
         self.c2 = C2Client(self.config)
         
         # Inicialización de Módulos
+        self.yara = YaraScanner()
         self.net_mon = NetworkMonitor(self.db, self.c2, self.config)
         self.usb_mon = USBMonitor(self.db, self.c2)
         self.port_mon = PortMonitor(self.db, self.c2)
@@ -245,7 +247,26 @@ class PySentinelAgent:
                     self.c2.send_alert(f"KILL PID {pid} resultado: {status}", "WARNING", "RESPONSE")
                 except ValueError:
                     logger.error("Formato de PID inválido recibido en comando KILL.")
-
+            elif cmd.startswith("SCAN_YARA:"):
+                # Uso: SCAN_YARA:C:\Users\Admin\suspicious.exe
+                try:
+                    target_path = cmd.split(":", 1)[1]
+                    path = self._safe_path_validate(target_path)
+                    
+                    logger.info(f"Iniciando escaneo YARA en: {path}")
+                    results = self.yara.scan_file(path)
+                    
+                    if results:
+                        for match in results:
+                            msg = f"MALWARE DETECTADO: {match['rule']} ({match['description']}) en {path}"
+                            self.c2.send_alert(msg, match['severity'], "YARA_DETECTION")
+                    else:
+                        logger.info("Escaneo YARA limpio.")
+                        # Opcional: Avisar al C2 de que está limpio
+                        
+                except Exception as e:
+                    logger.error(f"Error executing SCAN_YARA: {e}")
+                    
         except Exception as e:
             logger.error(f"Excepción no controlada ejecutando comando: {e}")
             self.c2.send_alert(f"Error de ejecución en agente: {str(e)}", "ERROR", "DEBUG")
