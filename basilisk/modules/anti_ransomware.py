@@ -1,13 +1,13 @@
-# pysentinel/modules/anti_ransomware.py
+# basilisk/modules/anti_ransomware.py
 import os
 import logging
 from typing import Callable, Optional
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from pysentinel.utils.logger import Logger
+from basilisk.utils.logger import Logger
 
 # Trap Configuration
-CANARY_FOLDER = os.path.join(os.path.expanduser("~"), ".pysentinel_trap")
+CANARY_FOLDER = os.path.join(os.path.expanduser("~"), ".basilisk_trap")
 CANARY_FILES = {
     "passwords_2024.docx": "Confidential content decoy...",
     "bitcoin_wallet.dat": "Fake wallet hex dump...",

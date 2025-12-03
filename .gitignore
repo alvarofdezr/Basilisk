@@ -55,7 +55,8 @@ key.pem
 # ===========================
 # 7. Scripts de Hacking/Test (NO SUBIR)
 # ===========================
-# Herramientas ofensivas o pruebas locales que se ven en tu foto
+test_folder/prueba.txt
+test_folder/prueba2.txt
 attack_sim.py
 red_team.py
 prueba_ransomware.py

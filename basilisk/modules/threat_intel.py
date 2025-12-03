@@ -1,4 +1,4 @@
-# pysentinel/modules/threat_intel.py
+# basilisk/modules/threat_intel.py
 import requests
 import time
 from typing import Optional, Dict

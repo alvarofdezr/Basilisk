@@ -1,4 +1,4 @@
-# pysentinel/core/database.py
+# basilisk/core/database.py
 import sqlite3
 import csv
 from typing import Optional, List, Tuple, Any
@@ -9,7 +9,7 @@ class DatabaseManager:
     Handles local SQLite interactions for event logging and FIM baselines.
     Thread-safe connection management for the agent.
     """
-    def __init__(self, db_name: str = "pysentinel.db") -> None:
+    def __init__(self, db_name: str = "basilisk.db") -> None:
         self.db_name: str = db_name 
         # check_same_thread=False is required for multi-threaded agent architecture
         self.conn: sqlite3.Connection = sqlite3.connect(db_name, check_same_thread=False)

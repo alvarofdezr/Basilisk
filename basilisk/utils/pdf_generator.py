@@ -1,4 +1,4 @@
-# pysentinel/utils/pdf_generator.py
+# basilisk/utils/pdf_generator.py
 from fpdf import FPDF
 from datetime import datetime
 from typing import List, Tuple
@@ -8,7 +8,7 @@ class PDFReport(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 15)
         self.cell(80)
-        self.cell(30, 10, 'PySentinel - Security Audit Report', 0, 0, 'C')
+        self.cell(30, 10, 'basilisk - Security Audit Report', 0, 0, 'C')
         self.ln(20)
         
         self.set_line_width(0.5)

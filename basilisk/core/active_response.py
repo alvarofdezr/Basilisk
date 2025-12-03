@@ -1,6 +1,6 @@
-# pysentinel/core/active_response.py
+# basilisk/core/active_response.py
 import psutil
-from pysentinel.utils.logger import Logger
+from basilisk.utils.logger import Logger
 
 def kill_process_by_pid(pid: int) -> bool:
     """

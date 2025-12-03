@@ -1,4 +1,4 @@
-# pysentinel/core/config.py
+# basilisk/core/config.py
 import yaml
 import os
 import sys
@@ -24,7 +24,7 @@ class Config:
 
     @property
     def db_name(self) -> str:
-        return str(self.data.get("database", {}).get("name", "pysentinel.db"))
+        return str(self.data.get("database", {}).get("name", "basilisk.db"))
 
     @property
     def directories(self) -> List[str]:

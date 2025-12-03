@@ -1,8 +1,8 @@
-# pysentinel/modules/registry_monitor.py
+# basilisk/modules/registry_monitor.py
 import winreg
 from typing import Dict, Tuple, List
-from pysentinel.core.database import DatabaseManager
-from pysentinel.utils.logger import Logger
+from basilisk.core.database import DatabaseManager
+from basilisk.utils.logger import Logger
 
 class RegistryMonitor:
     """

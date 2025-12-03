@@ -1,7 +1,7 @@
-# pysentinel/utils/notifier.py
+# basilisk/utils/notifier.py
 import requests
-from pysentinel.core.config import Config
-from pysentinel.utils.logger import Logger
+from basilisk.core.config import Config
+from basilisk.utils.logger import Logger
 
 class TelegramNotifier:
     """
@@ -22,7 +22,7 @@ class TelegramNotifier:
         try:
             payload = {
                 "chat_id": self.chat_id,
-                "text": f"🚨 [PySentinel] 🚨\n\n{message}",
+                "text": f"🚨 [basilisk] 🚨\n\n{message}",
                 "parse_mode": "Markdown"
             }
             # Timeout is crucial to avoid blocking the main thread

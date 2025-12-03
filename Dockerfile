@@ -3,7 +3,7 @@ FROM python:3.10-slim
 
 # 2. Metadatos del ingeniero (Tú)
 LABEL maintainer="Tu Nombre <tu@email.com>"
-LABEL description="PySentinel HIDS Container"
+LABEL description="basilisk HIDS Container"
 
 # 3. Evitamos que Python genere archivos .pyc y buffer de salida
 ENV PYTHONDONTWRITEBYTECODE=1

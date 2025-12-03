@@ -1,9 +1,9 @@
-# pysentinel/modules/port_monitor.py
+# basilisk/modules/port_monitor.py
 import psutil
 import socket
 from typing import Set, Tuple, List, Dict
-from pysentinel.core.database import DatabaseManager
-from pysentinel.utils.logger import Logger
+from basilisk.core.database import DatabaseManager
+from basilisk.utils.logger import Logger
 
 class PortMonitor:
     """

@@ -1,4 +1,4 @@
-# pysentinel/utils/system_monitor.py
+# basilisk/utils/system_monitor.py
 import psutil
 from typing import Dict
 

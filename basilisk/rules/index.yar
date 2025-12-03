@@ -1,9 +1,9 @@
-/* pysentinel/rules/index.yar - Base de Firmas v1.0 */
+/* basilisk/rules/index.yar - Base de Firmas v1.0 */
 
 rule EICAR_Test_File {
     meta:
         description = "Test File (EICAR Standard)"
-        author = "PySentinel EDR"
+        author = "basilisk EDR"
         severity = "CRITICAL"
     strings:
         // Detecta la cadena EICAR estándar ignorando mayúsculas/minúsculas
@@ -15,7 +15,7 @@ rule EICAR_Test_File {
 rule Suspicious_WebShell_PHP {
     meta:
         description = "Possible PHP Webshell"
-        author = "PySentinel EDR"
+        author = "basilisk EDR"
         severity = "CRITICAL"
     strings:
         $s1 = "shell_exec" nocase
@@ -28,7 +28,7 @@ rule Suspicious_WebShell_PHP {
 rule Mimikatz_Memory_Pattern {
     meta:
         description = "Mimikatz Credential Dumper Artifacts"
-        author = "PySentinel EDR"
+        author = "basilisk EDR"
         severity = "CRITICAL"
     strings:
         $s1 = "gentilkiwi" wide ascii nocase

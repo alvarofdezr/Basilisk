@@ -6,17 +6,17 @@ import threading
 from unittest.mock import MagicMock, patch
 
 # Importamos tus módulos reales
-from pysentinel.core.database import Config
-from pysentinel.modules.fim import FileIntegrityMonitor
-from pysentinel.modules.anti_ransomware import CanarySentry
-from pysentinel.modules.network_monitor import NetworkMonitor
+from basilisk.core.database import Config
+from basilisk.modules.fim import FileIntegrityMonitor
+from basilisk.modules.anti_ransomware import CanarySentry
+from basilisk.modules.network_monitor import NetworkMonitor
 
 # --- FIXTURES (Configuración previa a cada test) ---
 
 @pytest.fixture
 def test_db(tmp_path):
     """Crea una base de datos real pero temporal para el test"""
-    db_file = tmp_path / "test_pysentinel.db"
+    db_file = tmp_path / "test_basilisk.db"
     db = Config(db_name=str(db_file))
     return db
 
@@ -102,7 +102,7 @@ def test_ransomware_trigger(tmp_path):
 def test_network_blocking_logic(test_db, mock_config):
     """
     Simula que 'malware.exe' se conecta a internet y verifica 
-    que PySentinel INTENTA matarlo.
+    que basilisk INTENTA matarlo.
     """
     mock_notifier = MagicMock()
     net_mon = NetworkMonitor(test_db, mock_notifier, mock_config)

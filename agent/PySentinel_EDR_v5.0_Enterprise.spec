@@ -31,7 +31,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='PySentinel_EDR_v5.0_Enterprise',
+    name='basilisk_EDR_v5.0_Enterprise',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

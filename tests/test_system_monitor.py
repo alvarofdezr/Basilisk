@@ -1,6 +1,6 @@
 # tests/test_system_monitor.py
 import pytest
-from pysentinel.utils.system_monitor import get_system_metrics
+from basilisk.utils.system_monitor import get_system_metrics
 
 def test_metrics_structure():
     """Verifica que la función devuelve los datos correctos (CPU, RAM, DISK)"""

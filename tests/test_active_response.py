@@ -2,7 +2,7 @@
 import pytest
 import psutil
 from unittest.mock import patch, MagicMock
-from pysentinel.core.active_response import kill_process_by_pid
+from basilisk.core.active_response import kill_process_by_pid
 
 def test_kill_existing_process():
     """Simula matar un proceso exitosamente"""

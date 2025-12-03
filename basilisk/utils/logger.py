@@ -1,4 +1,4 @@
-# pysentinel/utils/logger.py
+# basilisk/utils/logger.py
 import logging
 import sys
 import os
@@ -17,7 +17,7 @@ class Logger:
         return cls._instance
 
     def _initialize_logger(self):
-        self.logger = logging.getLogger("PySentinel")
+        self.logger = logging.getLogger("basilisk")
         self.logger.setLevel(logging.DEBUG)
         
         if self.logger.hasHandlers():
@@ -38,7 +38,7 @@ class Logger:
         self.logger.addHandler(console_handler)
 
         # File Handler
-        file_handler = logging.FileHandler("pysentinel_audit.log", encoding='utf-8')
+        file_handler = logging.FileHandler("basilisk_audit.log", encoding='utf-8')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 

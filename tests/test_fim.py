@@ -1,7 +1,7 @@
 import pytest
 import hashlib
 from unittest.mock import MagicMock  # <--- HERRAMIENTA CLAVE
-from pysentinel.modules.fim import FileIntegrityMonitor
+from basilisk.modules.fim import FileIntegrityMonitor
 
 # 1. SETUP
 @pytest.fixture

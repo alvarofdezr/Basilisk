@@ -1,4 +1,4 @@
-# pysentinel/utils/logger.py
+# basilisk/utils/logger.py
 import logging
 import sys
 from datetime import datetime
@@ -13,7 +13,7 @@ class Logger:
         return cls._instance
 
     def _initialize_logger(self):
-        self.logger = logging.getLogger("PySentinel")
+        self.logger = logging.getLogger("basilisk")
         self.logger.setLevel(logging.DEBUG)
 
         # Formato profesional: [FECHA] [NIVEL] Mensaje
@@ -25,7 +25,7 @@ class Logger:
         self.logger.addHandler(console_handler)
 
         # 2. Handler para Archivo (Histórico guardado)
-        file_handler = logging.FileHandler("pysentinel_audit.log")
+        file_handler = logging.FileHandler("basilisk_audit.log")
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 

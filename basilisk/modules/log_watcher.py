@@ -1,9 +1,9 @@
-# pysentinel/modules/log_watcher.py
+# basilisk/modules/log_watcher.py
 import re
 import os
 from typing import Optional
-from pysentinel.core.database import DatabaseManager
-from pysentinel.utils.logger import Logger
+from basilisk.core.database import DatabaseManager
+from basilisk.utils.logger import Logger
 
 class LogWatcher:
     """

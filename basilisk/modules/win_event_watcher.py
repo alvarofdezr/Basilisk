@@ -1,6 +1,6 @@
-# pysentinel/modules/win_event_watcher.py
+# basilisk/modules/win_event_watcher.py
 import time
-from pysentinel.utils.logger import Logger
+from basilisk.utils.logger import Logger
 
 # Optional dependency: Only works on Windows
 try:

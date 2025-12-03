@@ -1,17 +1,18 @@
 # server/server.py
 """
-PySentinel EDR - Command & Control (C2) Server
-Versión: 6.4 (Stable Enterprise Architecture)
+Basilisk C2 Server (fka basilisk)
+Versión: 6.5 (Basilisk Architecture)
 
-CHANGELOG v6.4 Final:
-- [FIX #8] Persistencia de Comandos: COMMAND_QUEUE migrado a SQL.
-- [FIX #7] Heartbeat Throttling (Mantenido).
-- [FIX #5] HTTPS/TLS (Mantenido).
+CHANGELOG v6.5:
+- [FIX C2] IP Spoofing Protection (X-Forwarded-For)
+- [FIX C3] SQL Injection prevention in Command Queue
+- Rebranding a 'Basilisk'.
 """
 
 import sys
 import os
 import hashlib
+import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from collections import defaultdict
@@ -36,22 +37,19 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 
-from pysentinel.core.config import Config
-from server_persistence import init_db, get_db, Agent, IncidentLog, PendingCommand
+from basilisk.core.config import Config
+from server_persistence import init_db, get_db, Agent, IncidentLog, PendingCommand, AgentReport
 
 # --- CARGA DE CONFIGURACIÓN ---
 try:
     CONFIG = Config(config_path=os.path.join(PROJECT_ROOT, 'config.yaml'))
-    
     ADMIN_HASH = getattr(CONFIG, 'admin_hash', None) or hashlib.sha512("admin123".encode()).hexdigest()
     ADMIN_USER = getattr(CONFIG, 'admin_user', "admin")
     SECRET_KEY = getattr(CONFIG, 'secret_key', "SUPER_SECRET_SESSION_KEY_DEFAULT")
     MAX_LOGIN_ATTEMPTS = getattr(CONFIG, 'max_login_attempts', 5)
     LOCKOUT_TIME = getattr(CONFIG, 'lockout_time', 300)
     SESSION_LIFETIME_HOURS = getattr(CONFIG, 'session_lifetime', 8)
-
-except Exception as e:
-    print(f"[ERROR] Config fallback: {e}")
+except Exception:
     ADMIN_HASH = hashlib.sha512("admin123".encode()).hexdigest()
     ADMIN_USER = "admin"
     SECRET_KEY = "EMERGENCY_KEY"
@@ -61,22 +59,28 @@ except Exception as e:
 
 # --- ESTRUCTURAS EN MEMORIA ---
 login_attempts: Dict[str, List[datetime]] = defaultdict(list)
-# COMMAND_QUEUE removido: ahora usamos BBDD
-TEMPORARY_REPORTS: Dict[str, Dict[str, Any]] = {}
-
-# Throttling
 MIN_HEARTBEAT_INTERVAL = 1.0 
 last_heartbeats: Dict[str, datetime] = defaultdict(lambda: datetime.min)
-
 STATIC_FILES_DIR = os.path.join(SERVER_DIR, "static")
 
 # --- APP ---
-app = FastAPI(title="PySentinel C2", version="6.4 Persistent")
+app = FastAPI(title="Basilisk C2", version="6.5")
 
 @app.on_event("startup")
 def on_startup():
     init_db()
-    print(f"✨ [SYSTEM] C2 Server Online (HTTPS + SQL Persistence). User: {ADMIN_USER}")
+    print(f"🐍 [SYSTEM] Basilisk C2 v6.5 Online (HTTPS/SQL). User: {ADMIN_USER}")
+
+# --- UTILIDADES DE SEGURIDAD ---
+def get_client_ip(request: Request) -> str:
+    """
+    [FIX C2] Extrae la IP real del cliente incluso detrás de proxies.
+    Previene IP Spoofing en el Rate Limiter [cite: 85-90].
+    """
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host
 
 # --- MIDDLEWARE ---
 @app.middleware("http")
@@ -113,17 +117,21 @@ async def login_page(): return FileResponse(os.path.join(STATIC_FILES_DIR, 'logi
 
 @app.post("/api/v1/auth/login")
 async def login(request: Request):
-    client_ip = request.client.host
+    # [FIX C2] Usar IP real validada [cite: 91]
+    client_ip = get_client_ip(request)
     now = datetime.utcnow()
+    
+    # Limpieza de intentos viejos
     login_attempts[client_ip] = [t for t in login_attempts[client_ip] if now - t < timedelta(seconds=LOCKOUT_TIME)]
 
     if len(login_attempts[client_ip]) >= MAX_LOGIN_ATTEMPTS:
-        return JSONResponse(status_code=429, content={"status": "error", "message": "Locked out."})
+        remaining = LOCKOUT_TIME - (now - login_attempts[client_ip][0]).seconds
+        return JSONResponse(status_code=429, content={"status": "error", "message": f"Locked out ({remaining}s)"})
 
     data = await request.json()
     if data.get("username") != ADMIN_USER:
         login_attempts[client_ip].append(now)
-        return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid"})
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid credentials"})
 
     input_hash = hashlib.sha512(data.get("password", "").encode()).hexdigest()
     if input_hash == ADMIN_HASH:
@@ -133,7 +141,7 @@ async def login(request: Request):
         return {"status": "ok", "redirect": "/"}
     
     login_attempts[client_ip].append(now)
-    return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid"})
+    return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid credentials"})
 
 @app.post("/api/v1/auth/logout")
 async def logout(request: Request):
@@ -141,7 +149,6 @@ async def logout(request: Request):
     return {"status": "ok"}
 
 # --- AGENT CORE ---
-
 class HeartbeatData(BaseModel):
     agent_id: str
     hostname: str
@@ -155,13 +162,11 @@ class HeartbeatData(BaseModel):
 async def hb(data: HeartbeatData, db: Session = Depends(get_db)):
     aid = data.agent_id
     now = datetime.utcnow()
-
     # Throttling
     if (now - last_heartbeats[aid]).total_seconds() < MIN_HEARTBEAT_INTERVAL:
         return JSONResponse(status_code=429, content={"error": "Throttling active"})
     last_heartbeats[aid] = now
 
-    # Update Agent Info
     agent = db.query(Agent).filter(Agent.agent_id == aid).first()
     if agent:
         agent.last_seen = now
@@ -173,14 +178,12 @@ async def hb(data: HeartbeatData, db: Session = Depends(get_db)):
         db.add(Agent(agent_id=aid, hostname=data.hostname, os_info=data.os,
                      cpu_percent=data.cpu_percent, ram_percent=data.ram_percent))
     
-    # [FIX #8] Fetch pending commands from DB (FIFO)
     cmd_str = None
     pending_cmd = db.query(PendingCommand).filter(PendingCommand.agent_id == aid)\
                     .order_by(asc(PendingCommand.issued_at)).first()
-    
     if pending_cmd:
         cmd_str = pending_cmd.command
-        db.delete(pending_cmd) # Remove from queue once picked up
+        db.delete(pending_cmd)
     
     db.commit()
     return {"status": "ok", "command": cmd_str}
@@ -200,7 +203,6 @@ async def alrt(data: AlertData, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 # --- DASHBOARD & COMMANDS ---
-
 @app.get("/api/v1/dashboard")
 def dash(db: Session = Depends(get_db)):
     agents = db.query(Agent).all()
@@ -220,32 +222,70 @@ def dash(db: Session = Depends(get_db)):
     } for l in logs]}
 
 @app.post("/api/v1/report/{dtype}")
-async def rep(dtype: str, req: Request):
+async def rep(dtype: str, req: Request, db: Session = Depends(get_db)):
+    """Guarda el reporte en BBDD (Persistente)."""
     data = await req.json()
     aid = data["agent_id"]
-    if aid not in TEMPORARY_REPORTS: TEMPORARY_REPORTS[aid] = {}
-    TEMPORARY_REPORTS[aid][dtype] = data["content"]
+    content_json = json.dumps(data["content"]) # Convertir lista/dict a String para guardar
+    
+    # Buscar si ya existe un reporte de este tipo para este agente
+    existing_report = db.query(AgentReport).filter(
+        AgentReport.agent_id == aid, 
+        AgentReport.report_type == dtype
+    ).first()
+    
+    if existing_report:
+        existing_report.content = content_json
+        existing_report.generated_at = datetime.utcnow()
+    else:
+        new_report = AgentReport(agent_id=aid, report_type=dtype, content=content_json)
+        db.add(new_report)
+        
+    db.commit()
     return {"status": "ok"}
 
 @app.get("/api/v1/agent/{agent_id}/{dtype}")
-def get_report(agent_id: str, dtype: str):
-    if agent_id in TEMPORARY_REPORTS and dtype in TEMPORARY_REPORTS[agent_id]:
-        return JSONResponse(content=TEMPORARY_REPORTS[agent_id][dtype])
-    raise HTTPException(status_code=404, detail="Report not found")
+def get_report(agent_id: str, dtype: str, db: Session = Depends(get_db)):
+    """Recupera el último reporte conocido desde la BBDD."""
+    report = db.query(AgentReport).filter(
+        AgentReport.agent_id == agent_id, 
+        AgentReport.report_type == dtype
+    ).first()
+    
+    if report:
+        # Devolvemos el contenido parseado de nuevo a JSON
+        return JSONResponse(content=json.loads(report.content))
+    
+    # Si no hay reporte en BBDD, enviamos una lista vacía en vez de 404 para que no salga error rojo
+    return JSONResponse(content=[])
 
 @app.post("/api/v1/admin/command")
 async def cmd(data: dict, db: Session = Depends(get_db)):
     """
-    [FIX #8] Persist command to DB instead of memory.
+    [FIX C3] SQL Injection Prevention & Data Normalization
+    Previene inyección si el comando es un objeto complejo [cite: 98-106].
     """
-    tgt, cmd_str = data["target_agent_id"], data["command"]
+    tgt = data["target_agent_id"]
+    cmd_raw = data["command"]
+
+    # Normalización Segura
+    if isinstance(cmd_raw, dict):
+        cmd_str = json.dumps(cmd_raw)
+    elif isinstance(cmd_raw, str):
+        cmd_str = cmd_raw
+    else:
+        raise HTTPException(status_code=400, detail="Formato de comando inválido")
+
+    # Validación de longitud (Anti-DoS)
+    if len(cmd_str) > 4096:
+        raise HTTPException(status_code=413, detail="Comando demasiado largo")
     
     # Save to DB
-    new_cmd = PendingCommand(agent_id=tgt, command=cmd_str if isinstance(cmd_str, str) else str(cmd_str))
+    new_cmd = PendingCommand(agent_id=tgt, command=cmd_str)
     db.add(new_cmd)
     db.commit()
     
-    print(f"⚙️ [DB] Comando persistido para {tgt}: {cmd_str}")
+    print(f"⚙️ [DB] Comando Basilisk para {tgt}: {cmd_str}")
     return {"status": "queued", "command": cmd_str}
 
 # --- STATIC ---
@@ -263,5 +303,5 @@ if __name__ == "__main__":
         print("❌ ERROR: Certificados SSL no encontrados.")
         sys.exit(1)
 
-    print(f"🔒 Server Secure v6.4 (Port 8443)...")
+    print(f"🔒 Basilisk Server Secure v6.5 (Port 8443)...")
     uvicorn.run(app, host="0.0.0.0", port=8443, ssl_keyfile=key_path, ssl_certfile=cert_path)

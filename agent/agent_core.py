@@ -1,14 +1,10 @@
-# pysentinel/agent_core.py
+# basilisk/agent_core.py
 """
-PySentinel Agent Core v6.2
---------------------------
-Módulo principal del agente EDR. Gestiona la comunicación con el C2,
-la ejecución de módulos de monitorización y la respuesta a incidentes.
+Basilisk EDR - Agent Core v6.5
+------------------------------
+Controlador principal. Orquesta módulos y comunicación C2.
 
-HARDENING APPLIED (v6.2):
-- Comunicación forzada sobre HTTPS.
-- Sanitización estricta de rutas (Anti-Path Traversal).
-- Validación de comandos para prevenir inyección (Anti-RCE).
+[FIX v6.5] Conexión total de módulos al Dashboard (C2).
 """
 
 import sys
@@ -20,7 +16,7 @@ import hashlib
 import urllib3
 from typing import Dict, Any, Optional
 
-# Deshabilitar advertencias de certificados auto-firmados (Solo entorno Dev/Académico)
+# Deshabilitar advertencias de certificados auto-firmados
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 AGENT_DIR = os.path.dirname(__file__)
@@ -28,44 +24,38 @@ PROJECT_ROOT = os.path.abspath(os.path.join(AGENT_DIR, '..'))
 sys.path.insert(0, PROJECT_ROOT)
 
 # Core Imports
-from pysentinel.core.config import Config
-from pysentinel.core.database import DatabaseManager
-from pysentinel.core.active_response import kill_process_by_pid
-from pysentinel.utils.system_monitor import get_system_metrics
-from pysentinel.utils.logger import Logger
-from pysentinel.utils.notifier import TelegramNotifier
+from basilisk.core.config import Config
+from basilisk.core.database import DatabaseManager
+from basilisk.core.active_response import kill_process_by_pid
+from basilisk.utils.system_monitor import get_system_metrics
+from basilisk.utils.logger import Logger
+from basilisk.utils.notifier import TelegramNotifier
 
 # Module Imports
-from pysentinel.modules.network_monitor import NetworkMonitor
-from pysentinel.modules.usb_monitor import USBMonitor
-from pysentinel.modules.port_monitor import PortMonitor
-from pysentinel.modules.process_monitor import ProcessMonitor
-from pysentinel.modules.fim import FileIntegrityMonitor
-from pysentinel.modules.threat_intel import ThreatIntel
-from pysentinel.modules.anti_ransomware import CanarySentry
-from pysentinel.modules.yara_scanner import YaraScanner
+from basilisk.modules.network_monitor import NetworkMonitor
+from basilisk.modules.usb_monitor import USBMonitor
+from basilisk.modules.port_monitor import PortMonitor
+from basilisk.modules.process_monitor import ProcessMonitor
+from basilisk.modules.fim import FileIntegrityMonitor
+from basilisk.modules.threat_intel import ThreatIntel
+from basilisk.modules.anti_ransomware import CanarySentry
+from basilisk.modules.yara_scanner import YaraScanner
 
-# --- CONSTANTES DE CONFIGURACIÓN ---
-# [SEGURIDAD CRÍTICA] Cambio a HTTPS y puerto seguro por defecto.
+# --- CONSTANTES ---
 SERVER_URL = "https://localhost:8443/api/v1"
 HOSTNAME = platform.node()
-
-# Initialize Global Logger
 logger = Logger()
 
 class C2Client:
-    """
-    Cliente HTTP/HTTPS para comunicación segura con el servidor C2.
-    """
+    """Cliente HTTP/HTTPS para comunicación segura."""
     def __init__(self, config: Config):
         self.session = requests.Session()
-        # En producción real, 'verify' debería apuntar al path del certificado CA (.pem)
         self.session.verify = False 
         self.agent_id = f"AGENT_{HOSTNAME}"
         self.server_url = SERVER_URL
 
     def send_heartbeat(self, status: str) -> Dict[str, Any]:
-        system_metrics = get_system_metrics() 
+        metrics = get_system_metrics() 
         try:
             payload = {
                 "agent_id": self.agent_id, 
@@ -73,47 +63,34 @@ class C2Client:
                 "os": platform.system(),
                 "status": status, 
                 "timestamp": time.time(),
-                "cpu_percent": system_metrics["cpu"], 
-                "ram_percent": system_metrics["ram"]
+                "cpu_percent": metrics["cpu"], 
+                "ram_percent": metrics["ram"]
             }
-            
-            res = self.session.post(
-                f"{self.server_url}/heartbeat", 
-                json=payload, 
-                timeout=5,
-                verify=False # Importante para certificados auto-firmados
-            )
-            
+            res = self.session.post(f"{self.server_url}/heartbeat", json=payload, timeout=5)
             if res.status_code == 200:
-                logger.success(f"✅ Heartbeat OK (C2 Respondió)")
+                logger.success(f"✅ Heartbeat OK")
                 return res.json()
             else:
-                # Si el servidor responde con error (ej: 422, 500), imprimirlo
-                logger.error(f"❌ Error del Servidor: {res.status_code} - {res.text}")
+                logger.error(f"❌ Error C2: {res.status_code}")
                 return {}
-            
-        except Exception as e:
-            # Aquí veremos si es un error de SSL, conexión o timeout
-            logger.error(f"❌ FALLO DE CONEXIÓN: {e}")
+        except Exception:
             return {}
-        
+
     def send_alert(self, msg: str, severity: str = "WARNING", alert_type: str = "GENERAL") -> None:
-        """Transmite alertas de seguridad críticas al C2."""
+        """Envía alerta al Dashboard."""
         try:
-            logger.info(f"📤 Enviando alerta [{severity}]: {msg}")
+            logger.info(f"📤 Enviando alerta [{alert_type}]: {msg}")
             payload = {
                 "agent_id": self.agent_id,
                 "type": alert_type,
                 "message": msg, 
-                "severity": severity,
-                "timestamp": time.time()
+                "severity": severity
             }
             self.session.post(f"{self.server_url}/alert", json=payload)
         except Exception as e: 
-            logger.error(f"Fallo al enviar alerta al C2: {e}")
+            logger.error(f"Fallo enviando alerta: {e}")
 
     def upload_report(self, dtype: str, content: Any) -> None:
-        """Sube reportes estructurados (JSON) de gran tamaño."""
         try: 
             self.session.post(f"{self.server_url}/report/{dtype}", json={
                 "agent_id": self.agent_id, "content": content
@@ -121,182 +98,156 @@ class C2Client:
         except Exception as e: 
             logger.error(f"Fallo subiendo reporte {dtype}: {e}")
 
-class PySentinelAgent:
+class basiliskAgent:
     """
-    Controlador Principal del Agente.
-    Orquesta los módulos de seguridad y ejecuta la lógica de respuesta.
+    Cerebro del Agente Basilisk v6.5.
     """
     def __init__(self):
-        logger.info("🛡️ Iniciando PySentinel Agent v6.2...")
+        logger.info("🛡️ Iniciando Basilisk Agent v6.5...")
         self.config = Config()
         self.db = DatabaseManager(db_name=self.config.db_name)
         self.notifier = TelegramNotifier(self.config)
+        
+        # 1. Iniciamos el cliente C2 (El "Teléfono")
         self.c2 = C2Client(self.config)
         
-        # Inicialización de Módulos
+        # 2. INICIALIZACIÓN DE MÓDULOS CON CONEXIÓN C2
+        
+        # YARA (Motor de Detección)
         self.yara = YaraScanner()
-        self.net_mon = NetworkMonitor(self.db, self.c2, self.config)
-        self.usb_mon = USBMonitor(self.db, self.c2)
+        
+        # Network Monitor: Ahora envía bloqueos al Dashboard
+        # NOTA: Asegúrate de que network_monitor.py está actualizado para aceptar c2_client
+        try:
+            self.net_mon = NetworkMonitor(self.db, c2_client=self.c2, notifier=self.notifier, config=self.config)
+        except TypeError:
+            logger.warning("NetworkMonitor no actualizado para C2. Usando modo legacy.")
+            self.net_mon = NetworkMonitor(self.db, notifier=self.notifier, config=self.config)
+
+        # USB Monitor: Igual, intentamos pasar C2
+        try:
+            self.usb_mon = USBMonitor(self.db, c2_client=self.c2) 
+        except TypeError:
+            # Fallback por si tu USBMonitor.py no tiene el argumento c2_client en __init__
+            self.usb_mon = USBMonitor(self.db)
+
         self.port_mon = PortMonitor(self.db, self.c2)
         self.proc_mon = ProcessMonitor()
-        self.fim = FileIntegrityMonitor(self.db)
-        self.ti = ThreatIntel(self.config.virustotal_api_key)
         
-        # Módulos Reactivos (Background)
+        # FIM: Monitor de Integridad (Corrección del error que tenías)
+        # IMPORTANTE: Asegúrate de que fim.py está actualizado
+        try:
+            self.fim = FileIntegrityMonitor(self.db, c2_client=self.c2)
+        except TypeError:
+            logger.error("CRÍTICO: fim.py no está actualizado. No podrá reportar borrados.")
+            self.fim = FileIntegrityMonitor(self.db)
+        
+        self.ti = ThreatIntel(self.config.virustotal_api_key)
         self.ransomware_mon = CanarySentry(on_detection_callback=self._handle_ransomware_alert)
 
     def _handle_ransomware_alert(self, msg: str) -> None:
-        """Callback de alta prioridad para detección de Ransomware."""
-        logger.error(f"⚠️ AMENAZA CRÍTICA DETECTADA: {msg}")
+        logger.error(f"⚠️ RANSOMWARE DETECTADO: {msg}")
         self.c2.send_alert(msg, "CRITICAL", "RANSOMWARE")
         self.notifier.send_alert(f"☣️ {msg}")
 
     def _safe_path_validate(self, unsafe_path: str) -> str:
-        """
-        [SEGURIDAD] Valida y sanitiza rutas de archivos para evitar Path Traversal.
-        Lanza ValueError si la ruta es sospechosa.
-        """
-        # 1. Normalizar ruta (resuelve '..')
         clean_path = os.path.normpath(unsafe_path)
-        
-        # 2. Verificar Path Traversal explícito
-        if ".." in clean_path:
-            raise ValueError(f"Intento de Path Traversal detectado: {unsafe_path}")
-        
-        # 3. Verificar caracteres de inyección de comandos (Defensa en profundidad)
-        forbidden_chars = [';', '&', '|', '$', '`', '\n']
-        if any(char in clean_path for char in forbidden_chars):
-            raise ValueError("Caracteres inválidos detectados en la ruta.")
-
+        if ".." in clean_path: raise ValueError("Path Traversal Blocked")
+        if any(c in clean_path for c in [';', '&', '|', '$', '`']): raise ValueError("Invalid Char")
         return clean_path
 
     def execute_command(self, cmd_data: Any) -> None:
-        """
-        Parsea y ejecuta comandos recibidos del C2 de forma segura.
-        """
-        cmd = cmd_data
-        auth = ""
+        cmd = cmd_data.get("cmd") if isinstance(cmd_data, dict) else cmd_data
+        auth = cmd_data.get("auth", "") if isinstance(cmd_data, dict) else ""
         
-        if isinstance(cmd_data, dict):
-            cmd = cmd_data.get("cmd")
-            auth = cmd_data.get("auth", "")
+        logger.info(f"📥 Comando recibido: {cmd}")
 
-        logger.info(f"📥 Procesando comando: {cmd}")
-        
         try:
-            # --- COMANDOS ADMINISTRATIVOS ---
             if cmd == "CREATE_BASELINE":
-                input_hash = hashlib.sha512(auth.encode()).hexdigest()
-                # Validación de autenticación local para acciones críticas
-                if hasattr(self.config, 'admin_hash') and input_hash == self.config.admin_hash:
-                    logger.success("Autenticación Admin OK. Actualizando FIM Baseline...")
+                if hasattr(self.config, 'admin_hash') and hashlib.sha512(auth.encode()).hexdigest() == self.config.admin_hash:
                     for folder in self.config.directories:
-                        if os.path.exists(folder):
-                            self.fim.scan_directory(folder, mode="baseline")
-                    self.c2.send_alert("FIM Baseline actualizado por Administrador.", "INFO", "FIM")
+                        if os.path.exists(folder): self.fim.scan_directory(folder, mode="baseline")
+                    self.c2.send_alert("Baseline actualizado por Admin", "INFO", "SECURITY_AUDIT")
                 else:
-                    logger.warning("Fallo de autenticación en comando crítico.")
-                    self.c2.send_alert("Intento no autorizado de modificar Baseline.", "WARNING", "SECURITY")
+                    self.c2.send_alert("Intento no autorizado de Baseline", "WARNING", "SECURITY_AUDIT")
 
-            # --- COMANDOS OPERATIVOS ---
             elif cmd == "REPORT_PROCESSES":
-                data = self.proc_mon.scan_processes()
-                self.c2.upload_report("processes", data)
-                
+                self.c2.upload_report("processes", self.proc_mon.scan_processes())
             elif cmd == "REPORT_PORTS":
-                data = self.port_mon.get_full_report()
-                self.c2.upload_report("ports", data)
-                
-            # --- COMANDOS CON ARGUMENTOS (SANITIZADOS) ---
-            elif cmd.startswith("SCAN_VT:"):
-                try:
-                    raw_path = cmd.split(":", 1)[1]
-                    # Validar ruta antes de usarla
-                    path = self._safe_path_validate(raw_path)
-                    
-                    if not os.path.isfile(path):
-                        raise ValueError("El archivo no existe.")
+                self.c2.upload_report("ports", self.port_mon.get_full_report())
 
+            elif cmd.startswith("SCAN_VT:"):
+                path = self._safe_path_validate(cmd.split(":", 1)[1])
+                if os.path.isfile(path):
                     fhash = self.proc_mon.get_process_hash(path)
-                    if fhash:
-                        logger.info(f"Consultando VirusTotal para: {os.path.basename(path)}")
-                        res = self.ti.check_hash(fhash)
-                        if res:
-                            mal = res.get('malicious', 0)
-                            total = res.get('total', 0)
-                            msg = f"VT Result [{os.path.basename(path)}]: {mal}/{total} motores detectaron malicia."
-                            severity = "CRITICAL" if mal > 0 else "INFO"
-                            self.c2.send_alert(msg, severity, "THREAT_INTEL")
-                    else:
-                        self.c2.send_alert(f"No se pudo generar hash para: {path}", "WARNING", "ERROR")
-                
-                except ValueError as ve:
-                    logger.warning(f"Comando SCAN_VT bloqueado por seguridad: {ve}")
-                    self.c2.send_alert(f"Intento de inyección/path traversal bloqueado: {ve}", "CRITICAL", "SECURITY_AUDIT")
+                    res = self.ti.check_hash(fhash)
+                    if res and res.get('malicious', 0) > 0:
+                        self.c2.send_alert(f"VirusTotal: {res['malicious']} motores lo detectan ({os.path.basename(path)})", "CRITICAL", "THREAT_INTEL")
+                else:
+                    self.c2.send_alert(f"Archivo no encontrado: {path}", "WARNING", "ERROR")
 
             elif cmd.startswith("KILL:"):
-                try:
-                    # Validación estricta de tipo entero
-                    pid_str = cmd.split(":")[1]
-                    if not pid_str.isdigit():
-                        raise ValueError("PID debe ser numérico")
-                    
-                    pid = int(pid_str)
-                    success = kill_process_by_pid(pid)
-                    status = "TERMINATED" if success else "FAILED"
-                    self.c2.send_alert(f"KILL PID {pid} resultado: {status}", "WARNING", "RESPONSE")
-                except ValueError:
-                    logger.error("Formato de PID inválido recibido en comando KILL.")
+                pid = int(cmd.split(":")[1])
+                kill_process_by_pid(pid)
+                self.c2.send_alert(f"Proceso {pid} eliminado remotamente", "WARNING", "SHELL_RESPONSE")
+
             elif cmd.startswith("SCAN_YARA:"):
-                # Uso: SCAN_YARA:C:\Users\Admin\suspicious.exe
-                try:
-                    target_path = cmd.split(":", 1)[1]
-                    path = self._safe_path_validate(target_path)
-                    
-                    logger.info(f"Iniciando escaneo YARA en: {path}")
-                    results = self.yara.scan_file(path)
-                    
-                    if results:
-                        for match in results:
-                            msg = f"MALWARE DETECTADO: {match['rule']} ({match['description']}) en {path}"
-                            self.c2.send_alert(msg, match['severity'], "YARA_DETECTION")
-                    else:
-                        logger.info("Escaneo YARA limpio.")
-                        # Opcional: Avisar al C2 de que está limpio
-                        
-                except Exception as e:
-                    logger.error(f"Error executing SCAN_YARA: {e}")
-                    
+                path = self._safe_path_validate(cmd.split(":", 1)[1])
+                results = self.yara.scan_file(path)
+                if results:
+                    for match in results:
+                        self.c2.send_alert(f"BASILISK DETECTÓ: {match['rule']} en {path}", match['severity'], "YARA_DETECTION")
+                else:
+                    # Opcional: Avisar que está limpio
+                    pass
+
         except Exception as e:
-            logger.error(f"Excepción no controlada ejecutando comando: {e}")
-            self.c2.send_alert(f"Error de ejecución en agente: {str(e)}", "ERROR", "DEBUG")
+            logger.error(f"Error ejecución comando: {e}")
+            self.c2.send_alert(f"Error ejecución: {e}", "ERROR", "DEBUG")
 
     def run(self) -> None:
         """Bucle principal de ejecución del Agente."""
-        logger.success(f"🚀 Agente Activo en: {HOSTNAME} | C2: {SERVER_URL}")
+        logger.success(f"🚀 Basilisk Agent Activo | C2: {SERVER_URL}")
         
         # Iniciar hilos de monitorización en background
         self.ransomware_mon.start()
 
+        # Contadores para tareas periódicas
+        ticks = 0
+
         while True:
             try:
-                # 1. Tareas de Monitorización Pasiva
+                # 1. Tareas de Monitorización Pasiva (Rápidas)
                 self.net_mon.scan_connections() 
                 self.usb_mon.check_usb_changes()
                 
-                for d in self.config.directories:
-                    if os.path.exists(d): 
-                        self.fim.scan_directory(d, mode="monitor")
+                # 2. Tareas Periódicas (Cada 60 segundos aprox si sleep=3)
+                # 20 ticks * 3 seg = 60 seg
+                if ticks % 20 == 0:
+                    # --- ESCANEO DE HIGIENE RECURRENTE ---
+                    logger.info("🔍 [Auto-Scan] Revisando telemetría y amenazas...")
+                    procesos = self.proc_mon.scan_processes()
+                    for p in procesos:
+                        # Si es telemetría o malware crítico, enviamos alerta al Feed
+                        if p['risk'] in ['WARNING', 'CRITICAL'] and ("TELEMETRY" in p['reason'] or "FORENSIC" in p['reason']):
+                            msg = f"Amenaza activa detectada: {p['name']} ({p['reason']})"
+                            # Enviamos alerta (evitamos spam masivo si ya se envió hace poco en un sistema real, pero aquí queremos verlo)
+                            self.c2.send_alert(msg, p['risk'], "SECURITY_AUDIT")
+                    
+                    # También repasamos FIM
+                    for d in self.config.directories:
+                        if os.path.exists(d): self.fim.scan_directory(d, mode="monitor")
+                    
+                    self.port_mon.scan_ports()
 
-                self.port_mon.scan_ports()
-
-                # 2. Comunicación C2 (Heartbeat)
+                # 3. Comunicación C2 (Heartbeat)
                 data = self.c2.send_heartbeat("ONLINE")
                 
-                # 3. Ejecución de Comandos
+                # 4. Ejecución de Comandos
                 if data and "command" in data and data["command"]:
                     self.execute_command(data["command"])
 
+                ticks += 1
                 time.sleep(3)
 
             except KeyboardInterrupt:
@@ -308,4 +259,4 @@ class PySentinelAgent:
                 time.sleep(5)
 
 if __name__ == "__main__":
-    PySentinelAgent().run()
+    basiliskAgent().run()
