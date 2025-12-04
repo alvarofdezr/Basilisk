@@ -10,8 +10,9 @@ class PortMonitor:
     Monitors open network ports (TCP/UDP). 
     Maintains a baseline to detect newly opened ports in real-time.
     """
-    def __init__(self, db_manager: DatabaseManager, notifier):
+    def __init__(self, db_manager, c2_client=None, notifier=None):
         self.db = db_manager
+        self.c2 = c2_client  
         self.notifier = notifier
         self.logger = Logger()
         self.previous_ports: Set[Tuple[int, str]] = set()

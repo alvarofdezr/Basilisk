@@ -1,4 +1,4 @@
-# server_persistence.py
+# basilisk/core/server_persistence.py
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -18,7 +18,7 @@ class Agent(Base):
     agent_id = Column(String, unique=True, index=True)
     hostname = Column(String)
     os_info = Column(String)
-    last_seen = Column(DateTime, default=datetime.utcnow)
+    last_seen = Column(DateTime, default=datetime.now)
     cpu_percent = Column(Float, default=0.0)
     ram_percent = Column(Float, default=0.0)
 
@@ -26,7 +26,7 @@ class IncidentLog(Base):
     __tablename__ = "incident_logs"
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(String)
-    received_at = Column(DateTime, default=datetime.utcnow)
+    received_at = Column(DateTime, default=datetime.now)
     type = Column(String) 
     message = Column(String)
     severity = Column(String)
@@ -36,7 +36,7 @@ class PendingCommand(Base):
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(String, index=True)
     command = Column(String)
-    issued_at = Column(DateTime, default=datetime.utcnow)
+    issued_at = Column(DateTime, default=datetime.now)
 
 class AgentReport(Base):
     """[NUEVO] Persistencia de reportes (Procesos/Puertos) para evitar 404."""
@@ -45,7 +45,7 @@ class AgentReport(Base):
     agent_id = Column(String, index=True)
     report_type = Column(String) # "processes", "ports"
     content = Column(Text)       # JSON crudo
-    generated_at = Column(DateTime, default=datetime.utcnow)
+    generated_at = Column(DateTime, default=datetime.now)
 
 def init_db():
     Base.metadata.create_all(bind=engine)

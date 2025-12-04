@@ -97,12 +97,13 @@ class ProcessMonitor:
 
                 # --- [PASO 4] Forense de Memoria (Process Hollowing) ---
                 # Solo analizamos si no hemos detectado ya que es basura de telemetría
-                if risk_level != "WARNING":
-                    forensic_check = self.mem_scanner.detect_hollowing(info['pid'])
-                    if forensic_check.get('suspicious'):
-                        risk_level = "CRITICAL"
-                        technique = forensic_check.get('technique', 'Unknown')
-                        risk_reason = f"FORENSIC ALERT: {technique}"
+                if risk_level != "CRITICAL":
+                # Escaneamos PID
+                    forensic = self.mem_scanner.detect_hollowing(info['pid'])
+                
+                if forensic['suspicious']:
+                    risk_level = "CRITICAL"
+                    risk_reason = f"FORENSIC: {forensic['technique']}"
 
                 # --- [PASO 5] Masquerading Básico ---
                 if risk_level == "SAFE":

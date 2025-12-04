@@ -3,132 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basilisk C2 | SOC Dashboard v6.5</title>
+    <title>Basilisk C2 | SOC Dashboard v6.6 Fix</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
-
     <style>
-        :root {
-            --bg-body: #0b1120;       /* Negro azulado profundo */
-            --bg-panel: #151e32;      /* Paneles */
-            --bg-card: #1e293b;       /* Cards */
-            --accent-primary: #10b981; /* Verde Basilisk (Esmeralda) */
-            --accent-danger: #ef4444;
-            --accent-warn: #f59e0b;
-            --text-primary: #e2e8f0;
-            --sidebar-width: 260px;
-        }
-        body {
-            background-color: var(--bg-body);
-            color: var(--text-primary);
-            font-family: 'Inter', sans-serif; /* Fuente moderna UI */
-            overflow-x: hidden;
-            padding-left: var(--sidebar-width);
-        }
-
-        /* --- SIDEBAR --- */
-        #sidebar {
-            width: var(--sidebar-width);
-            height: 100vh;
-            position: fixed;
-            left: 0; top: 0;
-            background: var(--bg-panel);
-            border-right: 1px solid #334155;
-            z-index: 1000;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.3);
-        }
-        .brand-logo { 
-            padding: 24px; 
-            background: linear-gradient(180deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%);
-            border-bottom: 1px solid #334155; 
-        }
+        :root { --bg-body: #0b1120; --bg-panel: #151e32; --bg-card: #1e293b; --accent-primary: #10b981; --accent-danger: #ef4444; --accent-warn: #f59e0b; --text-primary: #e2e8f0; --sidebar-width: 260px; }
+        body { background-color: var(--bg-body); color: var(--text-primary); font-family: 'Inter', sans-serif; overflow-x: hidden; padding-left: var(--sidebar-width); }
+        #sidebar { width: var(--sidebar-width); height: 100vh; position: fixed; left: 0; top: 0; background: var(--bg-panel); border-right: 1px solid #334155; z-index: 1000; box-shadow: 4px 0 15px rgba(0,0,0,0.3); }
+        .brand-logo { padding: 24px; background: linear-gradient(180deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%); border-bottom: 1px solid #334155; }
         .brand-title { font-family: 'JetBrains Mono', monospace; font-weight: 800; letter-spacing: -1px; color: var(--accent-primary); font-size: 1.4rem; }
-        
         .nav-link-custom { padding: 14px 24px; color: #94a3b8; cursor: pointer; transition: all 0.3s; border-left: 3px solid transparent; font-weight: 500; }
         .nav-link-custom:hover { background: rgba(255,255,255,0.03); color: white; }
         .nav-link-custom.active { background: linear-gradient(90deg, rgba(16, 185, 129, 0.15), transparent); color: var(--accent-primary); border-left-color: var(--accent-primary); }
-
-        /* --- CONTENIDO PRINCIPAL --- */
         #main-content { padding: 30px; }
-
-        /* --- KPI CARDS (Glassmorphism subtle) --- */
-        .kpi-card {
-            background: var(--bg-panel);
-            border: 1px solid #334155;
-            border-radius: 8px;
-            position: relative;
-            overflow: hidden;
-        }
-        .kpi-card::after { content:''; position: absolute; top:0; right:0; width: 50px; height: 50px; background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%); }
+        .kpi-card { background: var(--bg-panel); border: 1px solid #334155; border-radius: 8px; position: relative; overflow: hidden; }
         .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 700; line-height: 1; }
         .kpi-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: 600; }
-
-        /* --- TABLE STYLING (Cyberpunk Clean) --- */
         #incidents-table_wrapper { padding: 0; background: transparent; }
-        
-        table.dataTable { 
-            border-collapse: separate; 
-            border-spacing: 0 4px; /* Espacio entre filas */
-            margin-top: 10px !important;
-        }
-        
-        table.dataTable thead th { 
-            background: transparent; 
-            color: #64748b; 
-            text-transform: uppercase; 
-            font-size: 0.75rem; 
-            border-bottom: 2px solid #334155 !important;
-            padding-bottom: 15px;
-        }
-        
-        table.dataTable tbody tr {
-            background-color: var(--bg-panel); 
-            transition: transform 0.2s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        table.dataTable tbody tr:hover {
-            transform: scale(1.005);
-            background-color: #1e293b;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-
-        table.dataTable tbody td {
-            border: none !important;
-            padding: 12px 15px;
-            vertical-align: middle;
-            font-size: 0.9rem;
-        }
-
-        /* Badge Styles */
-        .badge-cyber { 
-            font-family: 'JetBrains Mono', monospace; 
-            font-size: 0.7rem; 
-            padding: 5px 10px; 
-            border-radius: 4px; 
-            border: 1px solid transparent;
-        }
+        table.dataTable { border-collapse: separate; border-spacing: 0 4px; margin-top: 10px !important; }
+        table.dataTable thead th { background: transparent; color: #64748b; text-transform: uppercase; font-size: 0.75rem; border-bottom: 2px solid #334155 !important; padding-bottom: 15px; }
+        table.dataTable tbody tr { background-color: var(--bg-panel); transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table.dataTable tbody tr:hover { transform: scale(1.005); background-color: #1e293b; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        table.dataTable tbody td { border: none !important; padding: 12px 15px; vertical-align: middle; font-size: 0.9rem; }
+        .badge-cyber { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; padding: 5px 10px; border-radius: 4px; border: 1px solid transparent; }
         .badge-crit { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.2); }
         .badge-warn { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: #f59e0b; }
         .badge-info { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-color: #3b82f6; }
-        
-        /* Log Message Font */
-        .log-msg { font-family: 'JetBrains Mono', monospace; color: #cbd5e1; font-size: 0.85rem; }
-        .agent-id-tag { color: #94a3b8; font-weight: 600; font-size: 0.85rem; }
-
-        /* Agent Cards */
         .agent-card { background: var(--bg-panel); border: 1px solid #334155; margin-bottom: 10px; border-radius: 8px; transition: 0.2s; }
         .agent-card:hover { border-color: var(--accent-primary); }
         .agent-card.online { border-left: 4px solid var(--accent-primary); }
-        .agent-card.warning { border-left: 4px solid var(--accent-warn); }
         .agent-card.critical { border-left: 4px solid var(--accent-danger); }
-
-        /* Icons */
         .icon-box { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: rgba(255,255,255,0.05); }
-
     </style>
 </head>
 <body>
@@ -139,14 +47,14 @@
                 <span class="brand-title d-flex align-items-center">
                     <img src="/static/logo.ico" alt="Logo" style="height: 50px; width: auto; margin-right: 12px;"> BASILISK
                 </span>
-                <span class="badge bg-dark border border-success text-success font-monospace" style="font-size: 0.6rem;">v6.5</span>
+                <span class="badge bg-dark border border-success text-success font-monospace" style="font-size: 0.6rem;">v6.6</span>
             </div>
             <div class="text-success opacity-75 small mt-2" style="font-size: 0.7rem; letter-spacing: 1px;">ADVANCED THREAT DEFENSE</div>
         </div>
         <div class="mt-4">
             <div class="nav-link-custom active"><i class="fa-solid fa-grid-2 me-3"></i>Threat Feed</div>
             <div class="nav-link-custom"><i class="fa-solid fa-network-wired me-3"></i>Network Map</div>
-            <div class="nav-link-custom" onclick="openReports()"><i class="fa-solid fa-file-contract me-3"></i>Auditoría</div>
+            <div class="nav-link-custom" onclick="Swal.fire('Info', 'Módulo de auditoría en desarrollo.', 'info')"><i class="fa-solid fa-file-contract me-3"></i>Auditoría</div>
         </div>
         <div class="mt-auto p-4 border-top border-secondary bg-black bg-opacity-25">
             <div class="d-flex align-items-center justify-content-between mb-3">
@@ -158,15 +66,11 @@
     </div>
 
     <div id="main-content">
-        
         <div class="row g-4 mb-5">
             <div class="col-md-3">
                 <div class="p-4 kpi-card">
                     <div class="d-flex justify-content-between">
-                        <div>
-                            <div class="kpi-title">Agentes Activos</div>
-                            <div class="kpi-value text-success mt-2" id="kpi-agents">0</div>
-                        </div>
+                        <div><div class="kpi-title">Agentes Activos</div><div class="kpi-value text-success mt-2" id="kpi-agents">0</div></div>
                         <div class="text-success opacity-25"><i class="fa-solid fa-server fa-2x"></i></div>
                     </div>
                 </div>
@@ -174,10 +78,7 @@
             <div class="col-md-3">
                 <div class="p-4 kpi-card">
                     <div class="d-flex justify-content-between">
-                        <div>
-                            <div class="kpi-title">Amenazas (24h)</div>
-                            <div class="kpi-value text-danger mt-2" id="kpi-critical">0</div>
-                        </div>
+                        <div><div class="kpi-title">Amenazas (24h)</div><div class="kpi-value text-danger mt-2" id="kpi-critical">0</div></div>
                         <div class="text-danger opacity-25"><i class="fa-solid fa-biohazard fa-2x"></i></div>
                     </div>
                 </div>
@@ -185,10 +86,7 @@
             <div class="col-md-3">
                 <div class="p-4 kpi-card">
                     <div class="d-flex justify-content-between">
-                        <div>
-                            <div class="kpi-title">Baseline FIM</div>
-                            <div class="kpi-value text-info mt-2" id="kpi-fim">OK</div>
-                        </div>
+                        <div><div class="kpi-title">Baseline FIM</div><div class="kpi-value text-info mt-2" id="kpi-fim">OK</div></div>
                         <div class="text-info opacity-25"><i class="fa-solid fa-file-shield fa-2x"></i></div>
                     </div>
                 </div>
@@ -201,31 +99,18 @@
         </div>
 
         <div class="row g-4">
-            
             <div class="col-md-3">
                 <h6 class="text-muted text-uppercase mb-3 small fw-bold"><i class="fa-solid fa-laptop-code me-2"></i>Infraestructura</h6>
-                <div id="agents-list" class="agent-list-container">
-                    </div>
+                <div id="agents-list" class="agent-list-container"></div>
             </div>
 
             <div class="col-md-9">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="text-muted text-uppercase small fw-bold mb-0 me-3"><i class="fa-solid fa-satellite-dish me-2"></i>Live Incident Feed</h6>
-                    <button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="fetchDashboardData()" title="Forzar actualización">
-                        <i class="fa-solid fa-rotate-right"></i>
-                    </button>
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="fetchDashboardData()" title="Forzar actualización"><i class="fa-solid fa-rotate-right"></i></button>
                 </div>
-                
                 <table id="incidents-table" class="table" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th>Hora</th>
-                            <th>Agente</th>
-                            <th>Nivel</th>
-                            <th>Tipo</th>
-                            <th>Evento Detectado</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Hora</th><th>Agente</th><th>Nivel</th><th>Tipo</th><th>Evento Detectado</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -259,12 +144,26 @@
                     <ul class="nav nav-tabs border-0" id="reportTabs">
                         <li class="nav-item"><button class="nav-link active rounded-0 text-muted" data-bs-toggle="tab" data-bs-target="#processes-tab-pane" onclick="loadReportView('processes')">PROCESSES</button></li>
                         <li class="nav-item"><button class="nav-link rounded-0 text-muted" data-bs-toggle="tab" data-bs-target="#ports-tab-pane" onclick="loadReportView('ports')">PORTS</button></li>
+                        <li class="nav-item"><button class="nav-link rounded-0 text-danger" data-bs-toggle="tab" data-bs-target="#actions-tab-pane"><i class="fa-solid fa-radiation me-2"></i>ACTIONS</button></li>
                     </ul>
                 </div>
                 <div class="modal-body p-0 bg-black">
                     <div class="tab-content" id="reportTabsContent">
                         <div class="tab-pane fade show active" id="processes-tab-pane"><div id="processes-content" class="table-responsive"></div></div>
                         <div class="tab-pane fade" id="ports-tab-pane"><div id="ports-content" class="table-responsive"></div></div>
+                        <div class="tab-pane fade" id="actions-tab-pane">
+                            <div class="p-4 d-flex flex-column gap-3 align-items-center justify-content-center text-center">
+                                <h5 class="text-danger font-monospace mb-4">⚠️ ZONA DE RESPUESTA ACTIVA</h5>
+                                <div class="d-flex gap-4">
+                                    <button class="btn btn-outline-danger btn-lg p-4 border-2" onclick="confirmIsolation(true)">
+                                        <div class="mb-2"><i class="fa-solid fa-network-wired fa-2x"></i></div><div>ISOLATE HOST</div>
+                                    </button>
+                                    <button class="btn btn-outline-success btn-lg p-4 border-2" onclick="confirmIsolation(false)">
+                                        <div class="mb-2"><i class="fa-solid fa-rotate-left fa-2x"></i></div><div>RESTORE NET</div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -293,85 +192,28 @@
             setInterval(fetchDashboardData, REFRESH_RATE);
         });
 
-        // --- VISUALIZACIÓN PRO ---
+        // --- DASHBOARD CORE ---
         function initDataTables() {
             dataTable = new $('#incidents-table').DataTable({
-                dom: 'rtip', // Sin buscador ni selector de longitud (más limpio)
-                pageLength: 8,
-                order: [[0, 'desc']],
+                dom: 'rtip', pageLength: 8, order: [[0, 'desc']],
                 language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json' },
                 columns: [
-                    { data: 'received_at' },
-                    { data: 'agent_id' },
-                    { data: 'severity' },
-                    { data: 'type' },
-                    { data: 'message' }
+                    { data: 'received_at' }, { data: 'agent_id' }, { data: 'severity' }, { data: 'type' }, { data: 'message' }
                 ],
                 columnDefs: [
-                    {
-                        targets: 0, // FECHA
-                        render: function(data) {
-                            const date = new Date(data);
-                            return `<span class="text-muted small font-monospace">${date.toLocaleTimeString()}</span>`;
-                        }
-                    },
-                    {
-                        targets: 1, // AGENTE (NUEVO)
-                        render: function(data) {
-                            // Extraer solo el nombre si es AGENT_PC-NAME
-                            const shortName = data.replace('AGENT_', '');
-                            return `<span class="agent-id-tag"><i class="fa-solid fa-desktop me-1"></i>${shortName}</span>`;
-                        }
-                    },
-                    {
-                        targets: 2, // SEVERIDAD
-                        className: 'text-center',
-                        render: function(data) {
-                            const map = {
-                                'CRITICAL': '<span class="badge-cyber badge-crit">CRITICAL</span>',
-                                'WARNING': '<span class="badge-cyber badge-warn">WARNING</span>',
-                                'INFO': '<span class="badge-cyber badge-info">INFO</span>'
-                            };
-                            return map[data] || `<span class="badge bg-secondary">${data}</span>`;
-                        }
-                    },
-                    {
-                        targets: 3, // TIPO (ICONOS COMPLETOS)
-                        className: 'text-center',
-                        render: function(data) {
-                            // Mapeo completo de iconos por tipo de alerta
-                            const icons = {
-                                // YARA / Malware
-                                'YARA_DETECTION': '<div class="icon-box text-danger border border-danger bg-danger bg-opacity-10"><i class="fa-solid fa-biohazard"></i></div>',
-                                'RANSOMWARE': '<div class="icon-box text-danger border border-danger bg-danger bg-opacity-10"><i class="fa-solid fa-user-secret"></i></div>',
-                                
-                                // Archivos (FIM)
-                                'FILE_MOD': '<div class="icon-box text-warning border border-warning bg-warning bg-opacity-10"><i class="fa-solid fa-file-pen"></i></div>',
-                                'FILE_DEL': '<div class="icon-box text-danger border border-danger bg-danger bg-opacity-10"><i class="fa-solid fa-trash-can"></i></div>',
-                                'FILE_NEW': '<div class="icon-box text-success border border-success bg-success bg-opacity-10"><i class="fa-solid fa-file-circle-plus"></i></div>',
-                                
-                                // Red
-                                'NET_DEFENSE': '<div class="icon-box text-info border border-info bg-info bg-opacity-10"><i class="fa-solid fa-shield-halved"></i></div>',
-                                'NET_ALLOW': '<div class="icon-box text-secondary border border-secondary"><i class="fa-solid fa-network-wired"></i></div>',
-                                
-                                // Hardware
-                                'USB_EVENT': '<div class="icon-box text-warning border border-warning"><i class="fa-brands fa-usb"></i></div>',
-                                
-                                // Shell / Comandos
-                                'SHELL_RESPONSE': '<div class="icon-box text-light border border-light"><i class="fa-solid fa-terminal"></i></div>',
-                                'SECURITY_AUDIT': '<div class="icon-box text-primary border border-primary"><i class="fa-solid fa-eye"></i></div>'
-                            };
-                            
-                            // Si el tipo no existe, poner campana genérica
-                            return icons[data] || `<div class="icon-box text-secondary"><i class="fa-solid fa-bell"></i></div><small class="text-muted d-block mt-1" style="font-size:0.6rem">${data}</small>`;
-                        }
-                    },
-                    {
-                        targets: 4, // MENSAJE
-                        render: function(data) {
-                            return `<span class="log-msg">${data}</span>`;
-                        }
-                    }
+                    { targets: 0, render: d => `<span class="text-muted small font-monospace">${new Date(d).toLocaleTimeString()}</span>` },
+                    { targets: 1, render: d => `<span class="agent-id-tag"><i class="fa-solid fa-desktop me-1"></i>${d.replace('AGENT_', '')}</span>` },
+                    { targets: 2, className: 'text-center', render: d => {
+                        const m = {'CRITICAL':'badge-crit','WARNING':'badge-warn','INFO':'badge-info'};
+                        return `<span class="badge-cyber ${m[d]||'bg-secondary'}">${d}</span>`;
+                    }},
+                    { targets: 3, className: 'text-center', render: d => {
+                        // Icon mapping
+                        const i = {'YARA_DETECTION':'fa-biohazard text-danger', 'NET_DEFENSE':'fa-shield-halved text-info', 'FILE_MOD':'fa-file-pen text-warning'};
+                        const cls = i[d] || 'fa-bell text-secondary';
+                        return `<div class="icon-box"><i class="fa-solid ${cls}"></i></div>`;
+                    }},
+                    { targets: 4, render: d => `<span class="log-msg">${d}</span>` }
                 ]
             });
         }
@@ -380,147 +222,143 @@
             try {
                 const res = await fetch(`${API_BASE}/dashboard`);
                 const data = await res.json();
-                
                 updateServerStatus(true);
                 document.getElementById('kpi-agents').innerText = Object.keys(data.agents).length;
                 document.getElementById('kpi-critical').innerText = data.recent_incidents.filter(i => i.severity === 'CRITICAL').length;
-                
                 renderAgentList(data.agents);
                 
-                // Actualizar tabla solo si hay datos nuevos para evitar parpadeo
-                // En prod usaríamos un ID de último evento, aquí recargamos suavemente
-                const currentRows = dataTable.rows().count();
-                if (currentRows !== data.recent_incidents.length || currentRows === 0) {
-                    dataTable.clear().rows.add(data.recent_incidents).draw(false); // false mantiene la paginación
-                    updateCharts(data.recent_incidents);
+                // Actualizar tabla solo si hay cambios
+                const logs = data.recent_incidents;
+                if(logs.length > 0 && (!dataTable.row(0).data() || logs[0].received_at !== dataTable.row(0).data().received_at)){
+                    dataTable.clear().rows.add(logs).draw(false);
                 }
-
-            } catch(e) {
-                updateServerStatus(false);
-            }
+            } catch(e) { console.error(e); updateServerStatus(false); }
         }
 
         function renderAgentList(agents) {
             const list = document.getElementById('agents-list');
             if(Object.keys(agents).length === 0) {
-                 list.innerHTML = `<div class="p-3 text-center border border-dashed rounded text-muted"><i class="fa-solid fa-satellite fa-spin me-2"></i>Escaneando red...</div>`;
-                 return;
+                list.innerHTML = `<div class="p-3 text-center border border-dashed rounded text-muted">Buscando agentes...</div>`;
+                return;
             }
-            
             list.innerHTML = "";
             for(const [id, info] of Object.entries(agents)) {
-                const lastSeen = new Date(info.last_seen);
-                const isActive = (new Date() - lastSeen) < (REFRESH_RATE + 2000);
-                const shortId = id.replace('AGENT_', '');
-                
-                const cardClass = isActive ? 'online' : 'critical';
-                
+                const isActive = (new Date() - new Date(info.last_seen)) < 5000;
                 list.innerHTML += `
-                <div class="agent-card ${cardClass} p-3">
-                    <div class="d-flex justify-content-between align-items-center">
+                <div class="agent-card ${isActive?'online':'critical'} p-3">
+                    <div class="d-flex justify-content-between">
                         <span class="fw-bold font-monospace text-white">${info.hostname}</span>
-                        ${isActive ? '<i class="fa-solid fa-wifi text-success"></i>' : '<i class="fa-solid fa-circle-xmark text-danger"></i>'}
+                        ${isActive ? '<i class="fa-solid fa-wifi text-success"></i>' : '<i class="fa-solid fa-slash text-danger"></i>'}
                     </div>
-                    <div class="small text-muted mb-2 font-monospace" style="font-size:0.75rem">${shortId}</div>
+                    <div class="small text-muted mb-2 font-monospace">${id.replace('AGENT_', '')}</div>
                     <div class="d-flex gap-2">
-                         <button class="btn btn-sm btn-dark border-secondary flex-fill" onclick="openReport('${id}', '${info.hostname}')"><i class="fa-solid fa-eye me-1"></i>View</button>
-                         <button class="btn btn-sm btn-danger flex-fill" onclick="triggerCommand('${id}', 'KILL:ALL')"><i class="fa-solid fa-ban"></i></button>
+                        <button class="btn btn-sm btn-dark w-100" onclick="openReport('${id}', '${info.hostname}')">INSPECCIONAR</button>
                     </div>
                 </div>`;
             }
         }
-
-        function updateServerStatus(isOnline) {
-            const badge = document.getElementById('server-status-badge');
-            if (isOnline) {
-                badge.className = "badge bg-success shadow-sm";
-                badge.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> ONLINE';
-            } else {
-                badge.className = "badge bg-danger shadow-sm";
-                badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> OFFLINE';
-            }
-        }
-
-        // --- CHARTS & UTILS (Simplificado para brevedad) ---
-        function initCharts() {
-            // Configuración similar a la anterior pero con colores "Basilisk" (Verde/Negro)
-            // ... Se reutiliza la lógica existente ...
-            const ctxSev = document.getElementById('chartSeverity').getContext('2d');
-            chartSeverity = new Chart(ctxSev, {
-                type: 'doughnut',
-                data: { labels: ['CRIT', 'WARN', 'INFO'], datasets: [{ data: [1,1,1], backgroundColor: ['#ef4444', '#f59e0b', '#10b981'], borderWidth:0 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position:'right', labels:{color:'#94a3b8', font:{family:'JetBrains Mono'}} } }, cutout: '75%' }
-            });
-            
-            const ctxTypes = document.getElementById('chartTypes').getContext('2d');
-            chartTypes = new Chart(ctxTypes, {
-                type: 'bar',
-                data: { labels: [], datasets: [{ label:'Events', data:[], backgroundColor:'#3b82f6', borderRadius:4 }] },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis:'y', scales:{ x:{grid:{color:'#334155'}}, y:{grid:{display:false}} }, plugins:{legend:{display:false}} }
-            });
-        }
         
-        function updateCharts(logs) {
-            // Misma lógica de conteo
-            let sC = {'CRITICAL':0,'WARNING':0,'INFO':0};
-            let tC = {};
-            logs.forEach(l => { sC[l.severity]++; tC[l.type] = (tC[l.type]||0)+1; });
-            chartSeverity.data.datasets[0].data = [sC['CRITICAL'], sC['WARNING'], sC['INFO']];
-            chartSeverity.update();
-            const sorted = Object.entries(tC).sort((a,b)=>b[1]-a[1]).slice(0,5);
-            chartTypes.data.labels = sorted.map(x=>x[0]);
-            chartTypes.data.datasets[0].data = sorted.map(x=>x[1]);
-            chartTypes.update();
+        function updateServerStatus(online) {
+            const b = document.getElementById('server-status-badge');
+            b.className = online ? "badge bg-success shadow-sm" : "badge bg-danger shadow-sm";
+            b.innerHTML = online ? "ONLINE" : "OFFLINE";
         }
 
-        function toggleCharts() {
-            const area = document.getElementById('chart-area');
-            area.style.display = area.style.display === 'none' ? 'flex' : 'none';
-        }
-
-        async function triggerCommand(id, cmd) {
-            // Lógica existente de SweetAlert...
-            try {
-                 await fetch(`${API_BASE}/admin/command`, { 
-                    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target_agent_id: id, command: cmd}) 
-                 });
-                 Swal.fire({icon:'success', title:'Command Sent', toast:true, position:'top-end', showConfirmButton:false, timer:2000, background:'#1e293b', color:'#fff'});
-            } catch(e) {}
-        }
-        
-        async function logout() {
-            await fetch('/api/v1/auth/logout', {method: 'POST'});
-            window.location.href = '/login';
-        }
-
-        // Lógica de reportes mantenida (openReport, loadReportView...)
         function openReport(id, host) {
             selectedAgentID = id;
             document.getElementById('modalTitle').innerText = `INSPECTOR: ${host}`;
             modalInstance.show();
+            // Cargar por defecto procesos
             loadReportView('processes');
         }
-        
+
+        // --- FUNCION CRITICA DE REPORTE (MODIFICADA) ---
         async function loadReportView(type) {
-             const area = document.getElementById(type+'-content');
-             area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-success"></div></div>';
-             triggerCommand(selectedAgentID, type === 'processes' ? 'REPORT_PROCESSES' : 'REPORT_PORTS');
-             setTimeout(async () => {
-                 try {
-                     const res = await fetch(`${API_BASE}/agent/${selectedAgentID}/${type}`);
-                     const data = await res.json();
-                     if(type==='processes') {
-                         let h = '<table class="table table-dark table-sm table-hover font-monospace small"><thead><tr><th>PID</th><th>NAME</th><th>RISK</th><th>ACTION</th></tr></thead><tbody>';
-                         data.forEach(p => h+= `<tr><td>${p.pid}</td><td class="${p.risk==='CRITICAL'?'text-danger':''}">${p.name}</td><td>${p.risk}</td><td><button class="btn btn-xs btn-danger" onclick="triggerCommand('${selectedAgentID}','KILL:${p.pid}')">KILL</button></td></tr>`);
-                         area.innerHTML = h+'</tbody></table>';
-                     } else {
-                         let h = '<table class="table table-dark table-sm table-hover font-monospace small"><thead><tr><th>PORT</th><th>PROTO</th><th>SERVICE</th></tr></thead><tbody>';
-                         data.forEach(p => h+= `<tr><td class="text-info">${p.port}</td><td>${p.proto}</td><td>${p.service}</td></tr>`);
-                         area.innerHTML = h+'</tbody></table>';
-                     }
-                 } catch(e) { area.innerHTML = '<div class="text-center text-muted">No data received.</div>'; }
-             }, 3000);
+            const area = document.getElementById(type+'-content');
+            area.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-success"></div><div class="mt-2 text-muted font-monospace">Solicitando datos al agente...</div></div>';
+            
+            // 1. Enviar comando de escaneo
+            triggerCommand(selectedAgentID, type === 'processes' ? 'REPORT_PROCESSES' : 'REPORT_PORTS');
+            
+            // 2. Esperar respuesta (3 segundos)
+            setTimeout(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/agent/${selectedAgentID}/${type}`);
+                    if (!res.ok) throw new Error("Error fetching report");
+                    
+                    const data = await res.json();
+                    console.log(`[DEBUG] Datos recibidos (${type}):`, data); // Para depuración
+
+                    if (!data || data.length === 0) {
+                        area.innerHTML = '<div class="alert alert-warning border-0 bg-opacity-10 text-center">Sin datos recibidos. Asegúrate de que el agente está activo.</div>';
+                        return;
+                    }
+
+                    if(type === 'processes') {
+                        let h = '<table class="table table-dark table-sm table-hover font-monospace small"><thead><tr><th>PID</th><th>NOMBRE</th><th>USUARIO</th><th>RIESGO</th><th>ACCION</th></tr></thead><tbody>';
+                        data.forEach(p => {
+                            h += `<tr>
+                                <td>${p.pid}</td>
+                                <td class="${p.risk==='CRITICAL'?'text-danger fw-bold':''}">${p.name}</td>
+                                <td>${p.username || '?'}</td>
+                                <td><span class="badge ${p.risk==='CRITICAL'?'bg-danger':'bg-secondary'}">${p.risk}</span></td>
+                                <td><button class="btn btn-xs btn-outline-danger" onclick="triggerCommand('${selectedAgentID}','KILL:${p.pid}')">KILL</button></td>
+                            </tr>`;
+                        });
+                        area.innerHTML = h + '</tbody></table>';
+                    } else {
+                        // LOGICA ROBUSTA PARA PUERTOS
+                        let h = '<table class="table table-dark table-sm table-hover font-monospace small"><thead><tr><th>PUERTO</th><th>PROTOCOLO</th><th>ESTADO</th><th>PID</th></tr></thead><tbody>';
+                        data.forEach(p => {
+                            // Intentamos leer todas las posibles variantes que envía psutil/python
+                            let port = p.lport || p.port || p.local_port || '?';
+                            
+                            // A veces laddr viene como array [ip, port] o objeto {ip:.., port:..}
+                            if (p.laddr) {
+                                if (Array.isArray(p.laddr)) port = p.laddr[1];
+                                else if (typeof p.laddr === 'object') port = p.laddr.port || port;
+                            }
+
+                            let proto = p.proto || (p.type === 1 ? 'TCP' : 'UDP') || 'TCP';
+                            let status = p.status || p.service || 'UNKNOWN';
+                            
+                            h += `<tr>
+                                <td class="text-info fw-bold">${port}</td>
+                                <td>${proto}</td>
+                                <td>${status}</td>
+                                <td>${p.pid || '-'}</td>
+                            </tr>`;
+                        });
+                        area.innerHTML = h + '</tbody></table>';
+                    }
+
+                } catch(e) {
+                    console.error(e);
+                    area.innerHTML = `<div class="text-center text-danger py-3">Error cargando datos: ${e.message}</div>`;
+                }
+            }, 3000);
         }
+
+        async function triggerCommand(id, cmd) {
+            try {
+                await fetch(`${API_BASE}/admin/command`, { 
+                    method:'POST', headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({target_agent_id: id, command: cmd}) 
+                });
+            } catch(e) { console.error("Cmd error", e); }
+        }
+
+        function confirmIsolation(isolate) {
+            const action = isolate ? 'ISOLATE_HOST' : 'UNISOLATE_HOST';
+            triggerCommand(selectedAgentID, action);
+            Swal.fire('Comando Enviado', 'El agente procesará la solicitud en breve.', 'success');
+        }
+
+        // Init charts vacíos para evitar error
+        function initCharts() { /* ... */ } 
+        function toggleCharts() { document.getElementById('chart-area').style.display = 'flex'; }
+        async function logout() { await fetch('/api/v1/auth/logout', {method:'POST'}); window.location.href='/login'; }
+
     </script>
 </body>
 </html>

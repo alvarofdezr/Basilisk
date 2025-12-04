@@ -1,9 +1,9 @@
 # server/server.py
 """
 Basilisk C2 Server (fka basilisk)
-Versión: 6.5 (Basilisk Architecture)
+Versión: 6.6 (Basilisk Architecture)
 
-CHANGELOG v6.5:
+CHANGELOG v6.6:
 - [FIX C2] IP Spoofing Protection (X-Forwarded-For)
 - [FIX C3] SQL Injection prevention in Command Queue
 - Rebranding a 'Basilisk'.
@@ -98,7 +98,7 @@ async def security_middleware(request: Request, call_next):
     expires_at = request.session.get("expires_at")
     
     if not user: return _handle_unauthorized(path)
-    if expires_at and datetime.utcnow().timestamp() > expires_at:
+    if expires_at and datetime.now().timestamp() > expires_at:
         request.session.clear()
         return _handle_unauthorized(path)
     
@@ -119,7 +119,7 @@ async def login_page(): return FileResponse(os.path.join(STATIC_FILES_DIR, 'logi
 async def login(request: Request):
     # [FIX C2] Usar IP real validada [cite: 91]
     client_ip = get_client_ip(request)
-    now = datetime.utcnow()
+    now = datetime.now()
     
     # Limpieza de intentos viejos
     login_attempts[client_ip] = [t for t in login_attempts[client_ip] if now - t < timedelta(seconds=LOCKOUT_TIME)]
@@ -161,7 +161,7 @@ class HeartbeatData(BaseModel):
 @app.post("/api/v1/heartbeat")
 async def hb(data: HeartbeatData, db: Session = Depends(get_db)):
     aid = data.agent_id
-    now = datetime.utcnow()
+    now = datetime.now()
     # Throttling
     if (now - last_heartbeats[aid]).total_seconds() < MIN_HEARTBEAT_INTERVAL:
         return JSONResponse(status_code=429, content={"error": "Throttling active"})
@@ -176,7 +176,7 @@ async def hb(data: HeartbeatData, db: Session = Depends(get_db)):
         agent.ram_percent = data.ram_percent
     else:
         db.add(Agent(agent_id=aid, hostname=data.hostname, os_info=data.os,
-                     cpu_percent=data.cpu_percent, ram_percent=data.ram_percent))
+                        cpu_percent=data.cpu_percent, ram_percent=data.ram_percent))
     
     cmd_str = None
     pending_cmd = db.query(PendingCommand).filter(PendingCommand.agent_id == aid)\
@@ -197,7 +197,7 @@ class AlertData(BaseModel):
 @app.post("/api/v1/alert")
 async def alrt(data: AlertData, db: Session = Depends(get_db)):
     print(f"🔥 ALERTA [{data.severity}] {data.agent_id}: {data.message}")
-    db.add(IncidentLog(agent_id=data.agent_id, received_at=datetime.utcnow(),
+    db.add(IncidentLog(agent_id=data.agent_id, received_at=datetime.now(),
                         type=data.type, message=data.message, severity=data.severity))
     db.commit()
     return {"status": "ok"}
@@ -210,7 +210,7 @@ def dash(db: Session = Depends(get_db)):
         a.agent_id: {
             "hostname": a.hostname,
             "last_seen": a.last_seen.isoformat() if a.last_seen else None,
-            "status": "ONLINE" if a.last_seen and (datetime.utcnow() - a.last_seen).total_seconds() < 30 else "OFFLINE",
+            "status": "ONLINE" if a.last_seen and (datetime.now() - a.last_seen).total_seconds() < 30 else "OFFLINE",
             "os": a.os_info, "cpu_percent": a.cpu_percent, "ram_percent": a.ram_percent
         } for a in agents
     }
@@ -236,7 +236,7 @@ async def rep(dtype: str, req: Request, db: Session = Depends(get_db)):
     
     if existing_report:
         existing_report.content = content_json
-        existing_report.generated_at = datetime.utcnow()
+        existing_report.generated_at = datetime.now()
     else:
         new_report = AgentReport(agent_id=aid, report_type=dtype, content=content_json)
         db.add(new_report)
@@ -303,5 +303,5 @@ if __name__ == "__main__":
         print("❌ ERROR: Certificados SSL no encontrados.")
         sys.exit(1)
 
-    print(f"🔒 Basilisk Server Secure v6.5 (Port 8443)...")
+    print(f"🔒 Basilisk Server Secure v6.6 (Port 8443)...")
     uvicorn.run(app, host="0.0.0.0", port=8443, ssl_keyfile=key_path, ssl_certfile=cert_path)

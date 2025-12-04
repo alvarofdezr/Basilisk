@@ -1,7 +1,7 @@
 # basilisk/modules/network_monitor.py
 import psutil
 import ctypes
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Set
 from basilisk.utils.logger import Logger
 
@@ -9,11 +9,11 @@ class NetworkMonitor:
     """
     Monitor de conexiones de red con capacidades de bloqueo interactivo.
     [v6.6] Conectado al C2 Dashboard.
+    [FIX SECURITY] Implementado ThreadPool para evitar DoS por exceso de popups.
     """
-    # AÑADIDO: c2_client=None en los argumentos
     def __init__(self, db_manager, c2_client=None, notifier=None, config=None):
         self.db = db_manager
-        self.c2 = c2_client  # Guardamos la referencia al C2
+        self.c2 = c2_client
         self.notifier = notifier
         self.logger = Logger()
         
@@ -26,6 +26,9 @@ class NetworkMonitor:
         self.session_allowed_apps: Set[str] = set()
         self.active_alerts: Set[str] = set()
 
+        # [FIX] Pool de hilos limitado a 5 alertas simultáneas máximo
+        self.thread_pool = ThreadPoolExecutor(max_workers=5)
+
     def _interactive_block_routine(self, pid: int, app_name: str, ip: str) -> None:
         alert_id = f"{app_name}:{ip}"
         try:
@@ -36,6 +39,7 @@ class NetworkMonitor:
             title = "Basilisk EDR - Alerta de Tráfico"
             message = (f"⚠️ Tráfico sospechoso detectado.\n\nAPP: {app_name}\nDESTINO: {ip}\n\n¿Bloquear y Terminar Proceso?")
             
+            # Esta llamada es bloqueante, por eso debe ir en el ThreadPool
             result = ctypes.windll.user32.MessageBoxW(0, message, title, MB_YESNO | ICON_WARNING | MB_TOPMOST)
             
             if result == 6:  # YES -> BLOCK
@@ -47,7 +51,6 @@ class NetworkMonitor:
                     self.logger.warning(msg)
                     self.db.log_event("NET_DEFENSE", msg, "CRITICAL")
                     
-                    # ENVIAR AL DASHBOARD
                     if self.c2: self.c2.send_alert(msg, "CRITICAL", "NET_DEFENSE")
                     if self.notifier: self.notifier.send_alert(msg)
                         
@@ -58,7 +61,6 @@ class NetworkMonitor:
                 msg = f"✅ Tráfico autorizado por usuario.\nApp: {app_name} -> {ip}"
                 self.logger.info(msg)
                 
-                # ENVIAR AL DASHBOARD (Como INFO)
                 if self.c2: self.c2.send_alert(msg, "INFO", "NET_ALLOW")
 
         except Exception as e:
@@ -68,7 +70,6 @@ class NetworkMonitor:
                 self.active_alerts.remove(alert_id)
 
     def scan_connections(self) -> None:
-        # ... (El resto del código de escaneo se mantiene igual que en la v6.4) ...
         try:
             connections = psutil.net_connections(kind='inet')
             for conn in connections:
@@ -83,11 +84,18 @@ class NetworkMonitor:
 
                         if (proc_name not in self.whitelist) and (proc_name not in self.session_allowed_apps):
                             conn_id = f"{proc_name}:{remote_ip}"
+                            
                             if conn_id not in self.known_connections and conn_id not in self.active_alerts:
                                 self.known_connections.add(conn_id)
                                 self.active_alerts.add(conn_id)
                                 
-                                t = threading.Thread(target=self._interactive_block_routine, args=(conn.pid, proc_name, remote_ip), daemon=True)
-                                t.start()
+                                # [FIX] Usamos el ThreadPool en lugar de crear un hilo nuevo
+                                # Esto previene que 100 conexiones creen 100 hilos y colapsen la RAM
+                                self.thread_pool.submit(
+                                    self._interactive_block_routine, 
+                                    conn.pid, 
+                                    proc_name, 
+                                    remote_ip
+                                )
                     except: continue
         except: pass
