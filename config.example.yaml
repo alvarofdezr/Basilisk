@@ -1,31 +1,21 @@
-# config.yaml
 system:
-  version: "1.1.0"
-  debug_mode: true
+  version: "6.6.0"
+  log_level: "INFO"
 
 monitoring:
-  # Lista de carpetas que quieres vigilar 
   directories:
     - "./test_folder"
-  
-  # Archivo de logs a analizar
   log_file: "server_logs.txt"
-
-admin_password_hash: ""
 
 database:
   name: "basilisk.db"
 
-alerts:
-  telegram:
-    enabled: true
-    token: ""     
-    chat_id: "" 
-
 network:
   whitelist:
-    - ""
+    - "chrome.exe"
+    - "firefox.exe"
+    - "msedge.exe"
+    - "svchost.exe"
+    - "python.exe"
 
-security:
-  active_response: false # Solo avisa
-  admin_password_hash: ""
+# NOTA: Los secretos (API Keys, Passwords) deben configurarse en el archivo .env

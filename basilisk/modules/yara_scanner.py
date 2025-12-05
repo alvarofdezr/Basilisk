@@ -1,15 +1,8 @@
-# basilisk/modules/yara_scanner.py
-"""
-Basilisk EDR - Detection Engine (YARA)
-v6.5 Stable
-"""
 import yara
 import os
 from typing import List, Dict, Any
 from basilisk.utils.logger import Logger
 
-# [SEGURIDAD] Límite de escaneo para evitar DoS por consumo de RAM
-# 100 MB Límite duro
 MAX_SCAN_SIZE = 100 * 1024 * 1024 
 
 class YaraScanner:
@@ -23,13 +16,12 @@ class YaraScanner:
         try:
             if os.path.exists(self.rules_path):
                 self.rules = yara.compile(filepath=self.rules_path)
-                # DEBUG: Conteo de reglas
                 num_rules = sum(1 for _ in self.rules)
-                self.logger.success(f"👁️ Basilisk Engine Loaded: {num_rules} firmas activas.")
+                self.logger.success(f"Basilisk Engine Loaded: {num_rules} active signatures.")
             else:
-                self.logger.error(f"❌ Firmas no encontradas en: {self.rules_path}")
+                self.logger.error(f"Signatures not found at: {self.rules_path}")
         except yara.Error as e:
-            self.logger.error(f"❌ Error compilando reglas: {e}")
+            self.logger.error(f"Error compiling rules: {e}")
 
     def scan_file(self, filepath: str) -> List[Dict[str, Any]]:
         if not self.rules:
@@ -38,23 +30,21 @@ class YaraScanner:
         if not os.path.exists(filepath):
             return []
 
-        # [FIX C5] Validación de tamaño antes de leer el archivo
         try:
             size = os.path.getsize(filepath)
             if size > MAX_SCAN_SIZE:
-                self.logger.warning(f"⚠️ Archivo omitido por tamaño excesivo ({size/1024/1024:.2f} MB): {filepath}")
+                self.logger.warning(f"File skipped (size limit {size/1024/1024:.2f} MB): {filepath}")
                 return []
                 
             if size == 0:
-                return [] # Archivos vacíos o bloqueados
+                return []
                 
         except Exception as e:
-            self.logger.error(f"Error accediendo archivo: {e}")
+            self.logger.error(f"Error accessing file: {e}")
             return []
 
         matches = []
         try:
-            # Timeout de 10s para evitar congelamientos
             yara_matches = self.rules.match(filepath, timeout=10)
             
             for match in yara_matches:
@@ -65,9 +55,9 @@ class YaraScanner:
                     "file": filepath
                 }
                 matches.append(threat_info)
-                self.logger.error(f"🐍 BASILISK GAZE: Amenaza confirmada [{match.rule}] en {os.path.basename(filepath)}")
+                self.logger.error(f"Threat confirmed [{match.rule}] in {os.path.basename(filepath)}")
                 
         except Exception as e:
-            self.logger.error(f"Error en motor de escaneo: {e}")
+            self.logger.error(f"Scanner engine error: {e}")
 
         return matches

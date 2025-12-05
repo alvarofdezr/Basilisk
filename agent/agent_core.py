@@ -1,52 +1,32 @@
-# basilisk/core/agent_core.py
+# agent/agent_core.py
 """
-Basilisk EDR - Agent Core v6.6 (Fixed Command Execution)
---------------------------------------------------------
-Controlador principal multihilo.
-[FIX] Restaurada la lógica de REPORT_PROCESSES y REPORT_PORTS.
+Basilisk EDR - Agent Core v6.6.0
 """
-
 import sys
 import time
 import requests
 import platform
 import os
-import hashlib
 import urllib3
 import threading
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
-# Deshabilitar advertencias de certificados auto-firmados
+# Deshabilitar advertencias de certificados auto-firmados (necesario para la infraestructura PKI actual)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Configuración de rutas
 AGENT_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(os.path.join(AGENT_DIR, '..'))
-sys.path.insert(0, PROJECT_ROOT)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-# --- FALLBACK UTILS ---
-try:
-    from basilisk.utils.system_monitor import get_system_metrics
-    from basilisk.utils.logger import Logger
-    from basilisk.utils.notifier import TelegramNotifier
-except ImportError:
-    print("⚠️  [AVISO] Utils no encontrados. Usando Fallbacks básicos.")
-    def get_system_metrics(): return {"cpu": 0, "ram": 0}
-    class Logger:
-        def info(self, m): print(f"[INFO] {m}")
-        def success(self, m): print(f"[OK] {m}")
-        def warning(self, m): print(f"[WARN] {m}")
-        def error(self, m): print(f"[ERR] {m}")
-    class TelegramNotifier:
-        def __init__(self, c): pass
-        def send_alert(self, m): print(f"[TELEGRAM SIM] {m}")
-
-# Core Imports
+# Imports de Módulos Basilisk
 try:
     from basilisk.core.config import Config
     from basilisk.core.database import DatabaseManager
     from basilisk.core.active_response import kill_process_by_pid
-    # Module Imports
     from basilisk.modules.network_monitor import NetworkMonitor
     from basilisk.modules.usb_monitor import USBMonitor
     from basilisk.modules.port_monitor import PortMonitor
@@ -56,36 +36,40 @@ try:
     from basilisk.modules.anti_ransomware import CanarySentry
     from basilisk.modules.yara_scanner import YaraScanner
     from basilisk.modules.network_isolation import NetworkIsolator
+    from basilisk.modules.audit_scanner import AuditScanner  
+    from basilisk.utils.system_monitor import get_system_metrics
+    from basilisk.utils.logger import Logger
+    from basilisk.utils.notifier import TelegramNotifier
 except ImportError as e:
-    print(f"❌ Error Crítico: Faltan módulos base: {e}")
+    print(f"❌ CRITICAL: Missing Basilisk modules. Error: {e}")
     sys.exit(1)
 
-# --- CONSTANTES ---
-SERVER_URL = "https://localhost:8443/api/v1"
+# Constantes Globales
 HOSTNAME = platform.node()
 logger = Logger()
 
 class C2Client:
-    """Cliente HTTP/HTTPS para comunicación segura."""
+    """Cliente HTTP/HTTPS para comunicación segura con el servidor C2."""
     def __init__(self, config: Config):
         self.session = requests.Session()
-        self.session.verify = False 
+        self.session.verify = False  # Usamos certificados autofirmados
         self.agent_id = f"AGENT_{HOSTNAME}"
-        self.server_url = SERVER_URL
+        self.server_url = config.c2_url
 
     def send_heartbeat(self, status: str) -> Dict[str, Any]:
-        metrics = get_system_metrics() 
+        metrics = get_system_metrics()
         try:
             payload = {
-                "agent_id": self.agent_id, 
-                "hostname": HOSTNAME, 
+                "agent_id": self.agent_id,
+                "hostname": HOSTNAME,
                 "os": platform.system(),
-                "status": status, 
+                "status": status,
                 "timestamp": time.time(),
-                "cpu_percent": metrics["cpu"], 
-                "ram_percent": metrics["ram"]
+                "cpu_percent": metrics.get("cpu", 0.0),
+                "ram_percent": metrics.get("ram", 0.0)
             }
-            res = self.session.post(f"{self.server_url}/heartbeat", json=payload, timeout=2)
+            # Timeout corto para no bloquear el bucle principal
+            res = self.session.post(f"{self.server_url}/api/v1/heartbeat", json=payload, timeout=2)
             if res.status_code == 200:
                 return res.json()
             return {}
@@ -94,172 +78,210 @@ class C2Client:
 
     def send_alert(self, msg: str, severity: str = "WARNING", alert_type: str = "GENERAL") -> None:
         try:
-            logger.info(f"📤 Enviando alerta [{alert_type}]: {msg}")
+            logger.info(f"📤 Alert: {msg}")
             payload = {
                 "agent_id": self.agent_id,
                 "type": alert_type,
-                "message": msg, 
+                "message": msg,
                 "severity": severity
             }
-            self.session.post(f"{self.server_url}/alert", json=payload, timeout=3)
-        except Exception: pass
+            self.session.post(f"{self.server_url}/api/v1/alert", json=payload, timeout=3)
+        except Exception:
+            pass
 
     def upload_report(self, dtype: str, content: Any) -> None:
         """Sube reportes grandes (procesos, puertos) al C2."""
-        try: 
-            logger.info(f"📤 Subiendo reporte: {dtype} ({len(content)} items)")
-            self.session.post(f"{self.server_url}/report/{dtype}", json={
+        try:
+            logger.info(f"📤 Report upload: {dtype} ({len(content)} items)")
+            self.session.post(f"{self.server_url}/api/v1/report/{dtype}", json={
                 "agent_id": self.agent_id, "content": content
-            }, timeout=5)
-        except Exception as e: 
-            logger.error(f"Fallo subiendo reporte {dtype}: {e}")
+            }, timeout=10)
+        except Exception as e:
+            logger.error(f"Report upload failed ({dtype}): {e}")
 
 class BasiliskAgent:
     """
-    Cerebro del Agente Basilisk v7.1
+    Núcleo del Agente Basilisk.
+    Orquesta los módulos de seguridad y gestiona la comunicación asíncrona.
     """
     def __init__(self):
-        logger.info("🛡️ Iniciando Basilisk Agent v7.1...")
+        logger.info("🛡️ Initializing Basilisk Agent v6.6.0...")
         self.running = False
-        self.threads = []
         
+        # 1. Carga de Configuración y Utilidades
         self.config = Config()
         self.db = DatabaseManager(db_name=self.config.db_name)
         self.notifier = TelegramNotifier(self.config)
         self.c2 = C2Client(self.config)
         
-        # --- CARGA DE MÓDULOS ---
+        # 2. Inicialización de Módulos
         self.yara = YaraScanner()
-        self.isolator = NetworkIsolator(SERVER_URL)
+        self.audit = AuditScanner()
+        self.isolator = NetworkIsolator(self.config.c2_url)
         self.proc_mon = ProcessMonitor()
-        self.ti = ThreatIntel(getattr(self.config, 'virustotal_api_key', ''))
+        self.ti = ThreatIntel(self.config.virustotal_api_key)
         
-        # Módulos con manejo de compatibilidad
-        try: self.net_mon = NetworkMonitor(self.db, c2_client=self.c2, notifier=self.notifier, config=self.config)
-        except TypeError: self.net_mon = NetworkMonitor(self.db, notifier=self.notifier, config=self.config)
-
-        try: self.usb_mon = USBMonitor(self.db, c2_client=self.c2) 
-        except TypeError: self.usb_mon = USBMonitor(self.db)
-
-        # PortMonitor necesita C2 para reportar
-        try: self.port_mon = PortMonitor(self.db, c2_client=self.c2)
-        except TypeError: self.port_mon = PortMonitor(self.db, None)
-
-        try: self.fim = FileIntegrityMonitor(self.db, c2_client=self.c2)
-        except TypeError: self.fim = FileIntegrityMonitor(self.db)
-        
+        # Módulos con dependencias cruzadas
+        self.net_mon = NetworkMonitor(self.db, c2_client=self.c2, notifier=self.notifier, config=self.config)
+        self.usb_mon = USBMonitor(self.db, c2_client=self.c2)
+        self.port_mon = PortMonitor(self.db, c2_client=self.c2)
+        self.fim = FileIntegrityMonitor(self.db)
         self.ransomware_mon = CanarySentry(on_detection_callback=self._handle_ransomware_alert)
 
+        # 3. Pool de Ejecución Asíncrona (Para no bloquear el heartbeat)
+        # Max workers = 2 para evitar saturar la CPU con comandos concurrentes
+        self.command_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="AsyncWorker")
+
     def _handle_ransomware_alert(self, msg: str) -> None:
-        logger.error(f"⚠️ RANSOMWARE DETECTADO: {msg}")
+        """Callback de alta prioridad para detección de ransomware."""
+        logger.error(f"⚠️ RANSOMWARE DETECTED: {msg}")
         self.c2.send_alert(msg, "CRITICAL", "RANSOMWARE")
         self.notifier.send_alert(f"☣️ {msg}")
 
-    # --- [FIX] LÓGICA DE COMANDOS RESTAURADA ---
-    def execute_command(self, cmd_data: Any) -> None:
-        cmd = cmd_data.get("cmd") if isinstance(cmd_data, dict) else cmd_data
-        cmd_str = str(cmd)
-        logger.info(f"📥 Comando recibido: {cmd_str}")
-        
+    def _run_command_logic(self, cmd_str: str) -> None:
+        """
+        Lógica interna de ejecución de comandos.
+        Se ejecuta en un hilo separado del principal.
+        """
         try:
-            # 1. REPORTES (Lo que estaba fallando)
+            logger.info(f"⚡ Executing async task: {cmd_str}")
+
+            # --- REPORTING ---
             if cmd_str == "REPORT_PROCESSES":
                 data = self.proc_mon.scan_processes()
                 self.c2.upload_report("processes", data)
                 
             elif cmd_str == "REPORT_PORTS":
-                if self.port_mon:
-                    data = self.port_mon.get_full_report()
-                    self.c2.upload_report("ports", data)
-                else:
-                    logger.warning("PortMonitor no disponible")
+                data = self.port_mon.get_full_report()
+                self.c2.upload_report("ports", data)
 
-            # 2. RESPUESTA ACTIVA
+            # --- RESPUESTA ACTIVA ---
             elif cmd_str.startswith("KILL:"):
                 try:
                     pid = int(cmd_str.split(":")[1])
-                    kill_process_by_pid(pid)
-                    self.c2.send_alert(f"Proceso {pid} eliminado remotamente", "INFO", "RESPONSE")
-                except ValueError: pass
+                    if kill_process_by_pid(pid):
+                        self.c2.send_alert(f"Threat neutralized: PID {pid}", "INFO", "RESPONSE")
+                    else:
+                        self.c2.send_alert(f"Failed to kill PID {pid}", "ERROR", "RESPONSE")
+                except ValueError:
+                    pass
 
             elif cmd_str == "ISOLATE_HOST":
                 if self.isolator.isolate_host():
-                    self.c2.send_alert("HOST AISLADO: Tráfico bloqueado.", "CRITICAL", "NET_DEFENSE")
+                    self.c2.send_alert("HOST ISOLATED. Network lockdown active.", "CRITICAL", "NET_DEFENSE")
 
             elif cmd_str == "UNISOLATE_HOST":
-                self.isolator.restore_connection()
-                self.c2.send_alert("Conectividad restaurada.", "INFO", "NET_ALLOW")
-
+                if self.isolator.restore_connection():
+                    self.c2.send_alert("Connectivity restored.", "INFO", "NET_ALLOW")
+            elif cmd_str == "RUN_AUDIT":
+                report = self.audit.perform_audit()
+                self.c2.upload_report("audit", report)
+                self.c2.send_alert("Compliance Audit uploaded.", "INFO", "SECURITY_AUDIT")
+            elif cmd_str == "REPORT_NETWORK_MAP":
+                data = self.net_mon.get_network_snapshot()
+                self.c2.upload_report("network_map", data)
+                
+            # --- FORENSE Y AUDITORÍA ---
             elif cmd_str == "CREATE_BASELINE":
-                # Escaneo de FIM bajo demanda
-                target = getattr(self.config, 'directories', ["."])[0]
+                # Operación pesada (I/O intensiva)
+                target = self.config.directories[0] if self.config.directories else "."
                 self.fim.scan_directory(target, mode="baseline")
-                self.c2.send_alert("Baseline FIM actualizado.", "INFO", "SECURITY_AUDIT")
+                self.c2.send_alert("FIM Baseline updated successfully.", "INFO", "SECURITY_AUDIT")
 
             elif cmd_str.startswith("SCAN_YARA:"):
-                path = cmd_str.split(":", 1)[1]
-                matches = self.yara.scan_file(path)
+                # Operación pesada (CPU intensiva)
+                path_arg = cmd_str.split(":", 1)[1].strip()
+                matches = self.yara.scan_file(path_arg)
                 if matches:
-                    self.c2.send_alert(f"YARA Match: {path}", "CRITICAL", "YARA_DETECTION")
+                    self.c2.send_alert(f"YARA Match found: {path_arg}", "CRITICAL", "YARA_DETECTION")
                 else:
-                    self.c2.send_alert(f"Escaneo limpio: {path}", "INFO", "SECURITY_AUDIT")
+                    self.c2.send_alert(f"Scan clean: {path_arg}", "INFO", "SECURITY_AUDIT")
+            
+            logger.success(f"Task completed: {cmd_str}")
 
         except Exception as e:
-            logger.error(f"Error ejecutando comando {cmd_str}: {e}")
-            self.c2.send_alert(f"Fallo de ejecución: {e}", "ERROR", "DEBUG")
+            logger.error(f"Async command error ({cmd_str}): {e}")
+            self.c2.send_alert(f"Execution error: {e}", "ERROR", "DEBUG")
 
-    # --- WORKERS ---
+    def execute_command(self, cmd_data: Any) -> None:
+        """
+        Recibe el comando del C2 y lo delega inmediatamente al pool de hilos.
+        """
+        cmd = cmd_data.get("cmd") if isinstance(cmd_data, dict) else cmd_data
+        cmd_str = str(cmd)
+        
+        # Delegar ejecución para liberar el bucle principal
+        self.command_executor.submit(self._run_command_logic, cmd_str)
+
+    # --- WORKERS (Hilos de monitoreo continuo) ---
+
     def _worker_process_monitor(self):
         while self.running:
             try:
-                # Análisis de procesos automático (light)
+                # El scan_processes ahora usa Delta Scanning (ligero)
                 procesos = self.proc_mon.scan_processes()
                 for p in procesos:
                     if p.get('risk') == 'CRITICAL':
-                        # Solo enviamos alerta si es crítico para no saturar
-                        self.c2.send_alert(f"Proceso Crítico: {p['name']}", "CRITICAL", "PROCESS_ALERT")
+                        # Solo alertar de críticos para no saturar
+                        self.c2.send_alert(f"Critical Process: {p['name']}", "CRITICAL", "PROCESS_ALERT")
                 time.sleep(20) 
-            except Exception: time.sleep(5)
+            except Exception:
+                time.sleep(5)
 
     def _worker_fim(self):
-        targets = getattr(self.config, 'directories', ["."])
+        targets = self.config.directories
         while self.running:
             try:
                 for folder in targets:
-                    if os.path.exists(folder): self.fim.scan_directory(folder, mode="monitor")
+                    if os.path.exists(folder):
+                        # FIM ahora usa Smart Caching (ligero)
+                        self.fim.scan_directory(folder, mode="monitor")
                 time.sleep(30)
-            except Exception: time.sleep(10)
+            except Exception:
+                time.sleep(10)
 
     def _worker_network(self):
         while self.running:
             try:
-                if self.net_mon: self.net_mon.scan_connections()
+                if self.net_mon:
+                    # NetMon ahora usa su propio ThreadPool interno para alertas UI
+                    self.net_mon.scan_connections()
                 time.sleep(5)
-            except Exception: time.sleep(5)
+            except Exception:
+                time.sleep(5)
 
     def start(self):
+        """Inicia el ciclo de vida del agente."""
         self.running = True
-        if self.ransomware_mon: self.ransomware_mon.start()
-
-        # Iniciar Hilos
-        t_proc = threading.Thread(target=self._worker_process_monitor, name="T-Proc", daemon=True)
-        t_fim = threading.Thread(target=self._worker_fim, name="T-FIM", daemon=True)
-        t_net = threading.Thread(target=self._worker_network, name="T-Net", daemon=True)
         
-        self.threads = [t_proc, t_fim, t_net]
-        for t in self.threads: t.start()
+        # 1. Iniciar Vigilancia Anti-Ransomware
+        if self.ransomware_mon:
+            self.ransomware_mon.start()
 
-        logger.success(f"🚀 Agente activo. ID: {self.c2.agent_id}")
+        # 2. Iniciar Hilos de Monitoreo
+        threads = [
+            threading.Thread(target=self._worker_process_monitor, name="T-Proc", daemon=True),
+            threading.Thread(target=self._worker_fim, name="T-FIM", daemon=True),
+            threading.Thread(target=self._worker_network, name="T-Net", daemon=True)
+        ]
+        
+        for t in threads:
+            t.start()
 
-        # Bucle Principal (Heartbeat + Comandos)
+        logger.success(f"🚀 Agent active. ID: {self.c2.agent_id}")
+
+        # 3. Bucle Principal (Heartbeat + Recepción de Comandos)
         try:
             while True:
-                if self.usb_mon: self.usb_mon.check_usb_changes()
+                # Tareas síncronas muy ligeras
+                if self.usb_mon:
+                    self.usb_mon.check_usb_changes()
                 
-                # HEARTBEAT & COMANDOS
+                # Check-in con el C2
                 response = self.c2.send_heartbeat("ONLINE")
+                
+                # Procesar órdenes
                 if response and "command" in response and response["command"]:
-                    # Ejecutar comando recibido del servidor
                     self.execute_command(response["command"])
                 
                 time.sleep(3) # Intervalo de heartbeat
@@ -268,8 +290,16 @@ class BasiliskAgent:
             self.stop()
 
     def stop(self):
+        """Detención ordenada de servicios."""
+        logger.info("Stopping agent services...")
         self.running = False
-        if self.ransomware_mon: self.ransomware_mon.stop()
+        
+        # Apagar pool de comandos (no espera a que terminen tareas largas si se fuerza salida)
+        self.command_executor.shutdown(wait=False)
+        
+        if self.ransomware_mon:
+            self.ransomware_mon.stop()
+            
         sys.exit(0)
 
 if __name__ == "__main__":

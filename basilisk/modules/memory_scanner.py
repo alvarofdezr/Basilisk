@@ -1,7 +1,7 @@
 # basilisk/modules/memory_scanner.py
 """
-Basilisk EDR - Memory Forensics Module v6.6
-[UPDATED] Implementa lectura de memoria raw vía ctypes para detectar Hollowing.
+Basilisk EDR - Memory Forensics Module
+Implements raw memory reading via ctypes to detect Process Hollowing and Masquerading.
 """
 import psutil
 import hashlib

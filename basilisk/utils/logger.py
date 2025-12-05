@@ -1,11 +1,10 @@
-# basilisk/utils/logger.py
 import logging
 import sys
 import os
 
 class Logger:
     """
-    Singleton Logger class. 
+    Singleton Logger class.
     Configures stream handling (UTF-8) and file rotation.
     """
     _instance = None
@@ -18,12 +17,12 @@ class Logger:
 
     def _initialize_logger(self):
         self.logger = logging.getLogger("basilisk")
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)
         
         if self.logger.hasHandlers():
             self.logger.handlers.clear()
 
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
         # Windows Console Encoding Support
         if sys.platform == "win32":
@@ -38,9 +37,12 @@ class Logger:
         self.logger.addHandler(console_handler)
 
         # File Handler
-        file_handler = logging.FileHandler("basilisk_audit.log", encoding='utf-8')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+        try:
+            file_handler = logging.FileHandler("basilisk_audit.log", encoding='utf-8')
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+        except PermissionError:
+            pass # Fallback si no hay permisos de escritura
 
     def info(self, msg): self.logger.info(msg)
     def warning(self, msg): self.logger.warning(msg)
