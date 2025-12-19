@@ -1,127 +1,128 @@
 # basilisk/modules/memory_scanner.py
 """
 Basilisk EDR - Memory Forensics Module
-Implements raw memory reading via ctypes to detect Process Hollowing and Masquerading.
+Implements raw memory reading via ctypes to detect Process Hollowing.
 """
 import psutil
-import hashlib
 import os
+import sys
 import ctypes
+from ctypes import wintypes
 from typing import Dict, Optional
 from basilisk.utils.logger import Logger
 
-# --- WINDOWS API CONSTANTS ---
-PROCESS_VM_READ = 0x0010
-PROCESS_QUERY_INFORMATION = 0x0400
-k32 = ctypes.windll.kernel32
+# Definición de estructuras de Windows necesarias para forense
+class PROCESS_BASIC_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ('Reserved1', ctypes.c_void_p),
+        ('PebBaseAddress', ctypes.c_void_p),
+        ('Reserved2', ctypes.c_void_p * 2),
+        ('UniqueProcessId', ctypes.c_void_p),
+        ('Reserved3', ctypes.c_void_p)
+    ]
 
 class MemoryScanner:
     def __init__(self):
         self.logger = Logger()
+        self.is_windows = sys.platform == "win32"
+        
+        if self.is_windows:
+            try:
+                self.k32 = ctypes.windll.kernel32
+                self.nt = ctypes.windll.ntdll
+                
+                self.PROCESS_VM_READ = 0x0010
+                self.PROCESS_QUERY_INFORMATION = 0x0400
+                self.PROCESS_VM_OPERATION = 0x0008
+                
+            except AttributeError:
+                self.is_windows = False
 
-    def _hash_file(self, path: str) -> Optional[str]:
-        """Calcula el hash SHA-256 de un archivo en disco."""
-        try:
-            sha256 = hashlib.sha256()
-            with open(path, "rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
-                    sha256.update(chunk)
-            return sha256.hexdigest()
-        except (PermissionError, FileNotFoundError, OSError):
-            return None
-
-    def _read_memory_header(self, pid: int) -> bytes:
-        """
-        Intenta leer los primeros 512 bytes (PE Header) de la memoria del proceso.
-        Requiere permisos de Administrador/System.
-        """
-        try:
-            # Abrir proceso con permisos de lectura de memoria
-            process_handle = k32.OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, False, pid)
-            if not process_handle:
-                return b""
-            
-            # Dirección base típica (simplificado para agilidad)
-            # En un EDR real iteraríamos módulos con EnumProcessModules
-            base_address = 0x00400000 
-            
-            buffer_size = 512
-            buffer = ctypes.create_string_buffer(buffer_size)
-            bytes_read = ctypes.c_size_t(0)
-            
-            success = k32.ReadProcessMemory(
-                process_handle, 
-                ctypes.c_void_p(base_address), 
-                buffer, 
-                buffer_size, 
-                ctypes.byref(bytes_read)
-            )
-            
-            k32.CloseHandle(process_handle)
-            return buffer.raw if success else b""
-        except Exception:
-            return b""
+    def _read_memory(self, process_handle, address, size):
+        """Lee bytes de la memoria de otro proceso."""
+        buffer = ctypes.create_string_buffer(size)
+        bytes_read = ctypes.c_size_t(0)
+        success = self.k32.ReadProcessMemory(
+            process_handle, 
+            ctypes.c_void_p(address), 
+            buffer, 
+            size, 
+            ctypes.byref(bytes_read)
+        )
+        return buffer.raw if success else None
 
     def detect_hollowing(self, pid: int) -> Dict[str, any]:
         """
-        Analiza un proceso buscando discrepancias Disco vs Memoria.
+        Analiza si el proceso ha sido vaciado (Hollowed) comparando
+        la cabecera PE en memoria con la esperada.
         """
+        # [PROTECCIÓN DOCKER] Si no es Windows, salimos sin error.
+        if not self.is_windows:
+            return {"suspicious": False, "technique": "N/A (Linux Env)"}
+
+        process_handle = None
         try:
-            proc = psutil.Process(pid)
-            proc_name = proc.name().lower()
+            # 1. Abrir proceso con permisos de lectura
+            process_handle = self.k32.OpenProcess(
+                self.PROCESS_QUERY_INFORMATION | self.PROCESS_VM_READ, 
+                False, 
+                pid
+            )
             
-            try:
-                exe_path = proc.exe()
-            except (psutil.AccessDenied, psutil.ZombieProcess):
-                return {"suspicious": False}
+            if not process_handle:
+                return {"suspicious": False, "technique": "Access Denied"}
 
-            # 1. Detección de Masquerading (Tu lógica original mejorada)
-            if "svchost.exe" in proc_name and "system32" not in exe_path.lower():
-                return {
-                    "suspicious": True,
-                    "technique": "Masquerading",
-                    "confidence": 0.95,
-                    "details": f"Falso proceso de sistema en: {exe_path}"
-                }
-
-            # 2. Process Ghosting (Tu lógica original)
-            if not os.path.exists(exe_path):
-                return {
-                    "suspicious": True,
-                    "technique": "Process Ghosting",
-                    "confidence": 0.90,
-                    "details": "Ejecutable eliminado mientras proceso sigue activo."
-                }
-
-            # 3. Process Hollowing (Nueva lógica Enterprise)
-            # Si el proceso tiene un nombre "trigger" para pruebas O
-            # si logramos leer la memoria y la cabecera está corrupta.
+            # 2. Obtener información básica para encontrar el PEB (Process Environment Block)
+            pbi = PROCESS_BASIC_INFORMATION()
+            return_len = ctypes.c_ulong()
             
-            # A) Gatillo de prueba (para que puedas verificar que funciona)
-            if "hollow" in proc_name:
-                disk_hash = self._hash_file(exe_path)
-                return {
-                    "suspicious": True,
-                    "technique": "Process Hollowing (Simulated)",
-                    "confidence": 1.0,
-                    "details": "Detección por firma de comportamiento (Test Trigger)",
-                    "disk_hash": disk_hash
-                }
+            status = self.nt.NtQueryInformationProcess(
+                process_handle,
+                0, # ProcessBasicInformation
+                ctypes.byref(pbi),
+                ctypes.sizeof(pbi),
+                ctypes.byref(return_len)
+            )
 
-            # B) Inspección de Memoria Real (Solo intenta si somos Admin)
-            # Esto verifica si la cabecera PE en memoria empieza con 'MZ'
-            # Si un malware sobrescribe la cabecera sin cuidado, esto lo detecta.
-            mem_header = self._read_memory_header(pid)
-            if mem_header and len(mem_header) > 2 and mem_header[:2] != b'MZ':
-                # Nota: Algunos packers legítimos también hacen esto, por eso confidence es 0.6
-                return {
-                    "suspicious": True,
-                    "technique": "Memory Header Mismatch",
-                    "confidence": 0.60,
-                    "details": "Cabecera PE en memoria corrupta o no estándar (posible inyección)."
-                }
+            if status != 0: # STATUS_SUCCESS
+                self.k32.CloseHandle(process_handle)
+                return {"suspicious": False, "technique": "Query Failed"}
 
-            return {"suspicious": False}
+            # 3. Leer la dirección base de la imagen desde el PEB
+            # El ImageBaseAddress está en el offset 0x10 del PEB (en x64)
+            peb_address = pbi.PebBaseAddress
+            if not peb_address:
+                self.k32.CloseHandle(process_handle)
+                return {"suspicious": False, "technique": "No PEB"}
+
+            # Offset 0x10 para x64, 0x8 para x86. Asumimos x64 para este EDR moderno.
+            image_base_buffer = self._read_memory(process_handle, peb_address + 0x10, 8)
+            if not image_base_buffer:
+                self.k32.CloseHandle(process_handle)
+                return {"suspicious": False, "technique": "Read PEB Failed"}
+                
+            image_base = int.from_bytes(image_base_buffer, byteorder='little')
+
+            # 4. Leer la cabecera PE del ejecutable en memoria
+            # Leemos los primeros 0x200 bytes donde debería estar la firma 'MZ'
+            header = self._read_memory(process_handle, image_base, 0x200)
+            
+            if header:
+                # Chequeo de firma MZ (Mark Zbikowski)
+                if header[0:2] != b'MZ':
+                    self.k32.CloseHandle(process_handle)
+                    # Si la memoria base no empieza por MZ, algo raro pasa (o no es un EXE estándar)
+                    return {
+                        "suspicious": True, 
+                        "technique": "Header Mismatch (No MZ)"
+                    }
+            
+            self.k32.CloseHandle(process_handle)
+            
+            # Si llegamos aquí, tiene estructura de proceso válida
+            return {"suspicious": False, "technique": "None"}
 
         except Exception as e:
-            return {"suspicious": False}
+            if process_handle:
+                self.k32.CloseHandle(process_handle)
+            return {"suspicious": False, "technique": f"Error: {e}"}
