@@ -4,6 +4,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.egg-info/
+.DS_Store
 
 # ===========================
 # 2. Entornos Virtuales
@@ -52,7 +55,6 @@ certs/
 *.pem
 *.key
 # config.example.yaml (Plantilla vacía -> SÍ SUBIR)
-# (No lo ponemos aquí para que git lo detecte)
 
 # ===========================
 # 7. Scripts de Hacking/Test (NO SUBIR)
