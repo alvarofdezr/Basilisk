@@ -1,126 +1,66 @@
-# basilisk/modules/process_monitor.py
 """
-Basilisk EDR - Process Monitor (Optimized v6.6)
-Implements Delta Scanning to reduce CPU load.
+Basilisk Process Monitor v2.0
+Real-time process telemetry with anomaly detection.
 """
 import psutil
 import os
-import hashlib
-from typing import List, Dict, Optional, Set
-from basilisk.modules.memory_scanner import MemoryScanner
+from typing import List
+from basilisk.core.schemas import ProcessModel
+from basilisk.utils.logger import Logger
+
+logger = Logger()
 
 class ProcessMonitor:
     def __init__(self):
-        self.mem_scanner = MemoryScanner()
-        self.known_pids: Set[int] = set() # Caché de procesos ya analizados
-        
         self.suspicious_paths = [
-            os.environ.get('TEMP'),
-            os.environ.get('APPDATA'),
-            os.path.join(os.environ.get('USERPROFILE', ''), 'Downloads')
+            os.getenv("TEMP", "").lower(),
+            os.getenv("APPDATA", "").lower(),
+            "/tmp",
+            "/var/tmp"
         ]
-        
-        self.system32_processes = [
-            "svchost.exe", "taskmgr.exe", "lsass.exe", "csrss.exe", 
-            "winlogon.exe", "services.exe"
-        ]
+        self.critical_processes = ["lsass.exe", "svchost.exe", "csrss.exe", "winlogon.exe"]
 
-        self.kernel_processes = [
-            "registry", "memcompression", "system", "secure system", 
-            "smss.exe", "idle"
-        ]
-
-        self.telemetry_blacklist = {
-            "compattelrunner.exe": "MS Customer Experience Telemetry",
-            "devicecensus.exe": "Device Census (Data Collection)",
-            "smartscreen.exe": "Windows SmartScreen (Data Sending)",
-            "wermgr.exe": "Windows Error Reporting",
-            "diagtrack.exe": "Diagnostics Tracking Service",
-            "dmclient.exe": "Data Management Client",
-            "cortana.exe": "Cortana Voice Data",
-            "searchapp.exe": "Windows Indexing/Search Data",
-            "yourphone.exe": "Phone Synchronization",
-            "gamebar.exe": "Xbox Game Bar Telemetry",
-            "teams.exe": "Teams Background Analytics",
-            "onedrive.exe": "Cloud Sync (Data Exfiltration Risk)",
-            "officeclicktorun.exe": "Office Telemetry"
-        }
-
-    def scan_processes(self) -> List[Dict]:
+    def scan_processes(self) -> List[dict]:
         """
-        Retorna la lista completa de procesos, pero solo realiza
-        análisis profundo (Deep Scan) sobre los NUEVOS procesos.
+        Retrieves the process list and returns serialized data ready for C2.
+        Returns: List[dict] (Output of ProcessModel.dict())
         """
         process_list = []
-        current_pids = set()
         
-        for proc in psutil.process_iter(['pid', 'name', 'exe']):
+        for proc in psutil.process_iter(['pid', 'name', 'username', 'exe', 'cmdline', 'cpu_percent', 'memory_percent']):
             try:
-                info = proc.info
-                pid = info['pid']
-                current_pids.add(pid)
+                pinfo = proc.info
+                exe_path = (pinfo['exe'] or "").lower()
                 
-                # Si ya conocemos este PID y no es sospechoso, saltamos el análisis pesado
-                # (En un EDR real, re-escanearíamos periódicamente, aquí optimizamos)
-                is_new = pid not in self.known_pids
+                risk_level = "INFO"
+                risk_score = 0
                 
-                if not info['name']: continue
-                name = info['name'].lower()
-                
-                # Ignorar Kernel
-                if name in self.kernel_processes: continue
-                if not info['exe']: continue
-
-                exe_path = info['exe']
-                exe_lower = exe_path.lower()
-                
-                risk_level = "SAFE"
-                risk_reason = "Process Verified"
-
-                # 1. Telemetría (Chequeo rápido)
-                if name in self.telemetry_blacklist:
+                if exe_path and any(sp in exe_path for sp in self.suspicious_paths if sp):
                     risk_level = "WARNING"
-                    risk_reason = f"UNWANTED TELEMETRY: {self.telemetry_blacklist[name]}"
-
-                # 2. Rutas (Chequeo rápido)
-                elif any(sp in exe_lower for sp in self.suspicious_paths if sp):
-                    risk_level = "WARNING"
-                    risk_reason = "Executing from TEMP/Downloads"
-
-                # 3. Masquerading (Chequeo rápido)
-                elif risk_level == "SAFE":
-                    if name == "explorer.exe" and "c:\\windows\\explorer.exe" not in exe_lower:
+                    risk_score += 50
+                
+                if pinfo['name'] in self.critical_processes:
+                    if "system32" not in exe_path and "syswow64" not in exe_path:
                         risk_level = "CRITICAL"
-                        risk_reason = "Explorer.exe Masquerading"
-                    elif name in self.system32_processes:
-                        if "system32" not in exe_lower and "syswow64" not in exe_lower:
-                            risk_level = "CRITICAL"
-                            risk_reason = "System process outside System32"
+                        risk_score = 100
 
-                # 4. Forense de Memoria (Deep Scan) - SOLO EN NUEVOS PROCESOS
-                # Esto es lo que más CPU consume, así que lo limitamos.
-                if is_new and risk_level != "CRITICAL":
-                    forensic = self.mem_scanner.detect_hollowing(pid)
-                    if forensic['suspicious']:
-                        risk_level = "CRITICAL"
-                        risk_reason = f"FORENSIC: {forensic['technique']}"
+                model = ProcessModel(
+                    pid=pinfo['pid'],
+                    name=pinfo['name'],
+                    username=pinfo['username'] or "UNKNOWN",
+                    exe=pinfo['exe'],
+                    cmdline=" ".join(pinfo['cmdline']) if pinfo['cmdline'] else "",
+                    cpu_percent=pinfo['cpu_percent'] or 0.0,
+                    memory_percent=pinfo['memory_percent'] or 0.0,
+                    risk_level=risk_level,
+                    risk_score=risk_score
+                )
+                
+                process_list.append(model.dict())
 
-                process_list.append({
-                    "pid": pid,
-                    "name": info['name'],
-                    "path": exe_path,
-                    "risk": risk_level,
-                    "reason": risk_reason
-                })
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
-        
-        # Actualizamos la caché de PIDs conocidos
-        self.known_pids = current_pids
-        
-        # Ordenar por riesgo
-        priority = {"CRITICAL": 0, "WARNING": 1, "SAFE": 2}
-        process_list.sort(key=lambda x: priority.get(x['risk'], 2))
-        
-        return process_list
+            except Exception as e:
+                logger.debug(f"Error processing PID {proc.pid}: {e}")
+
+        return sorted(process_list, key=lambda x: x['cpu_percent'], reverse=True)

@@ -1,42 +1,31 @@
+"""
+Basilisk Network Monitor v2.0 (Refactored)
+Monitors active network connections using strict schemas.
+"""
 import psutil
 import threading
-import socket
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Set, List, Dict, Any
+from typing import List, Dict, Any
 from basilisk.utils.logger import Logger
+from basilisk.core.schemas import NetworkConnModel
 
 class NetworkMonitor:
-    """Monitors active network connections and generates telemetry snapshots.
-
-    This module operates in 'Passive Mode' for stealth: it detects suspicious 
-    connections and reports them to the C2 server without triggering local 
-    pop-ups or interrupting the user workflow.
-    """
-
     def __init__(self, db_manager: Any, c2_client: Any = None, notifier: Any = None, config: Any = None):
-        """Initializes the network monitor with whitelisting capabilities."""
         self.db = db_manager
         self.c2 = c2_client
         self.logger = Logger()
         self.lock = threading.Lock()
         
+        self.whitelist = ["chrome.exe", "firefox.exe", "svchost.exe", "python.exe", "msedge.exe"]
         if config and hasattr(config, 'network_whitelist'):
-            self.whitelist = [app.lower() for app in config.network_whitelist]
-        else:
-            self.whitelist = ["chrome.exe", "firefox.exe", "svchost.exe", "python.exe", "msedge.exe"]
+            self.whitelist.extend([app.lower() for app in config.network_whitelist])
             
-        self.known_connections: Set[str] = set()
-        self.active_alerts: Set[str] = set()
-        self.thread_pool = ThreadPoolExecutor(max_workers=2)
+        self.known_connections = set()
+        self.active_alerts = set()
+        self.thread_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="NetMonWorker")
 
     def get_network_snapshot(self) -> List[Dict[str, Any]]:
-        """Generates a static snapshot of all current ESTABLISHED connections.
-
-        Used by the C2 server to build the Network Map visualization.
-
-        Returns:
-            List[Dict]: A list of dictionaries containing source, destination, and process info.
-        """
+        """Generates a static snapshot of ESTABLISHED connections."""
         snapshot = []
         try:
             for conn in psutil.net_connections(kind='inet'):
@@ -48,20 +37,21 @@ class NetworkMonitor:
                         laddr = f"{conn.laddr.ip}:{conn.laddr.port}"
                         raddr = f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else "Unknown"
                         
-                        pid = conn.pid
                         proc_name = "Unknown"
-                        if pid:
+                        if conn.pid:
                             try:
-                                proc_name = psutil.Process(pid).name()
+                                proc_name = psutil.Process(conn.pid).name()
                             except (psutil.NoSuchProcess, psutil.AccessDenied):
                                 pass
 
-                        snapshot.append({
-                            "src": laddr,
-                            "dst": raddr,
-                            "process": proc_name,
-                            "pid": pid
-                        })
+                        model = NetworkConnModel(
+                            src=laddr,
+                            dst=raddr,
+                            process=proc_name,
+                            pid=conn.pid or 0
+                        )
+                        snapshot.append(model.dict())
+
                     except Exception:
                         continue
         except Exception as e:
@@ -69,32 +59,8 @@ class NetworkMonitor:
         
         return snapshot
 
-    def _report_suspicious_activity(self, pid: int, app_name: str, ip: str) -> None:
-        """Silently reports a suspicious connection to the C2 server.
-
-        Args:
-            pid (int): Process ID.
-            app_name (str): Name of the executable.
-            ip (str): Remote IP address.
-        """
-        alert_id = f"{app_name}:{ip}"
-        try:
-            msg = f"Suspicious traffic: {app_name} (PID: {pid}) -> {ip}"
-
-            if self.c2:
-                self.c2.send_alert(msg, "WARNING", "NET_ANOMALY")
-            
-            self.db.log_event("NET_ANOMALY", msg, "WARNING")
-
-        except Exception:
-            pass
-        finally:
-            with self.lock:
-                if alert_id in self.active_alerts: 
-                    self.active_alerts.remove(alert_id)
-
     def scan_connections(self) -> None:
-        """Scans for connections from non-whitelisted applications."""
+        """Background scan for suspicious anomalies."""
         try:
             for conn in psutil.net_connections(kind='inet'):
                 if conn.status == 'ESTABLISHED' and conn.raddr:
@@ -104,16 +70,20 @@ class NetworkMonitor:
                     try:
                         proc = psutil.Process(conn.pid).name().lower()
                         if proc not in self.whitelist:
+                            conn_id = f"{proc}:{conn.raddr.ip}"
+                            
                             with self.lock:
-                                conn_id = f"{proc}:{conn.raddr.ip}"
-                                if conn_id in self.known_connections or conn_id in self.active_alerts: 
-                                    continue
-                                
+                                if conn_id in self.known_connections: continue
                                 self.known_connections.add(conn_id)
-                                self.active_alerts.add(conn_id)
                                 
-                                self.thread_pool.submit(self._report_suspicious_activity, conn.pid, proc, conn.raddr.ip)
+                            self.thread_pool.submit(self._alert_anomaly, conn.pid, proc, conn.raddr.ip)
+                            
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
         except Exception:
             pass
+
+    def _alert_anomaly(self, pid: int, app: str, ip: str) -> None:
+        msg = f"Suspicious traffic: {app} (PID: {pid}) -> {ip}"
+        if self.c2: self.c2.send_alert(msg, "WARNING", "NET_ANOMALY")
+        if self.db: self.db.log_event("NET_ANOMALY", msg, "WARNING")

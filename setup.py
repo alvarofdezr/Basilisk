@@ -28,6 +28,7 @@ setup(
         "requests",
         "PyYAML",
         "python-multipart",
+        "itsdangerous",
         
         # System & Security
         "psutil",
