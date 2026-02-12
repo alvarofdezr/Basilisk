@@ -33,6 +33,7 @@ class PortRiskModel(BaseModel):
     process: str
     pid: int
     risk: str  # CRITICAL, HIGH, WARNING, INFO
+    explanation: Optional[str] = None
 
 class FirewallModel(BaseModel):
     Domain: str

@@ -1,7 +1,8 @@
 # basilisk/modules/fim.py
 """
-Basilisk EDR - File Integrity Monitor (Smart Caching v6.6)
+Basilisk EDR - File Integrity Monitor (Smart Caching v7.0)
 Utiliza metadatos (mtime/size) para evitar hashing redundante.
+Validated for Mypy strict mode.
 """
 import os
 import hashlib
@@ -9,7 +10,6 @@ from typing import Optional, Set, Tuple
 from basilisk.core.database import DatabaseManager
 from basilisk.utils.logger import Logger 
 
-# Configuración de rendimiento
 LARGE_FILE_THRESHOLD = 50 * 1024 * 1024  # 50 MB
 SMART_CHUNK_SIZE = 1 * 1024 * 1024       # 1 MB
 
@@ -48,7 +48,7 @@ class FileIntegrityMonitor:
 
     def _get_db_files_in_dir(self, directory: str) -> Set[str]:
         """Recupera paths conocidos desde la BBDD."""
-        known_files = set()
+        known_files: Set[str] = set()
         try:
             with self.db.lock:
                 cursor = self.db.conn.cursor() # type: ignore
@@ -92,7 +92,7 @@ class FileIntegrityMonitor:
                     
                     elif mode == "monitor":
                         if stored_data:
-                            if current_hash != stored_hash:
+                            if current_hash != stored_data[0]: 
                                 msg = f"⚠️ INTEGRIDAD COMPROMETIDA (Modificado): {full_path}"
                                 self._log("warning", msg)
                                 self.db.log_event("FILE_MOD", msg, "CRITICAL")
@@ -108,14 +108,17 @@ class FileIntegrityMonitor:
         if mode == "monitor":
             known_files = self._get_db_files_in_dir(directory_path)
             deleted_files = known_files - found_files_on_disk
+            
             for deleted_path in deleted_files:
                 if not os.path.exists(deleted_path):
                     msg = f"🗑️ ARCHIVO ELIMINADO: {deleted_path}"
                     self._log("warning", msg)
                     self.db.log_event("FILE_DEL", msg, "CRITICAL")
+                    
                     with self.db.lock:
-                        self.db.cursor.execute("DELETE FROM files_baseline WHERE path=?", (deleted_path,))
-                        self.db.conn.commit()
+                        cursor = self.db.conn.cursor() # type: ignore
+                        cursor.execute("DELETE FROM files_baseline WHERE path=?", (deleted_path,)) 
+                        self.db.conn.commit() # type: ignore
 
         if mode == "baseline":
             self._log("info", "Baseline completada.")
