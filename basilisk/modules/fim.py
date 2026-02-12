@@ -51,7 +51,7 @@ class FileIntegrityMonitor:
         known_files = set()
         try:
             with self.db.lock:
-                cursor = self.db.conn.cursor()
+                cursor = self.db.conn.cursor() # type: ignore
                 search_path = os.path.normpath(directory)
                 query = "SELECT path FROM files_baseline WHERE path LIKE ? OR path LIKE ?"
                 cursor.execute(query, (f"{search_path}\\%", f"{search_path}/%"))

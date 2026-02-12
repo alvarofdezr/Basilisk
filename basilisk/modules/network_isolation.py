@@ -1,6 +1,6 @@
 # basilisk/modules/network_isolation.py
 """
-Basilisk EDR - Network Isolation Module v6.6
+Basilisk EDR - Network Isolation Module v7.0
 Implementa 'Active Response' manipulando el Firewall de Windows.
 Permite aislar un host manteniendo la línea de vida con el C2.
 """
@@ -8,6 +8,7 @@ Permite aislar un host manteniendo la línea de vida con el C2.
 import subprocess
 import socket
 from urllib.parse import urlparse
+from typing import List, Optional
 from basilisk.utils.logger import Logger
 
 class NetworkIsolator:
@@ -17,20 +18,27 @@ class NetworkIsolator:
         self.rule_prefix = "Basilisk_Isolation"
 
     def _get_c2_ip(self) -> str:
-        """Resuelve la IP del C2 para la whitelist."""
+        """Resuelve la IP del C2 para la whitelist de forma segura."""
         if not self.c2_url:
             return ""
+            
         try:
             parsed = urlparse(self.c2_url)
             hostname = parsed.hostname
+            
+            if not hostname:
+                return ""
+                
             if hostname in ["localhost", "127.0.0.1"]:
                 return "127.0.0.1"
+                
             return socket.gethostbyname(hostname)
+            
         except Exception as e:
             self.logger.error(f"Fallo resolviendo IP C2: {e}")
-            return None
+            return ""
 
-    def _run_netsh(self, args: list) -> bool:
+    def _run_netsh(self, args: List[str]) -> bool:
         """Ejecuta comandos netsh de forma segura."""
         try:
             cmd = ["netsh", "advfirewall", "firewall"] + args
@@ -46,6 +54,7 @@ class NetworkIsolator:
         3. Permite DNS (UDP 53) para resolución básica.
         """
         c2_ip = self._get_c2_ip()
+        
         if not c2_ip:
             self.logger.error("No se puede aislar: Imposible resolver IP del C2.")
             return False
