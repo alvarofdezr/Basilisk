@@ -1,9 +1,11 @@
+
 # agent/agent_core.py
 """
 Basilisk EDR - Agent Core v6.8 (Refactored & Modular)
 Enterprise-grade endpoint agent with Command Dispatcher architecture.
 Author: Álvaro Fernández Ramos
 """
+
 import sys
 import time
 import requests
@@ -15,10 +17,11 @@ from typing import Dict, Any, Callable
 from concurrent.futures import ThreadPoolExecutor
 
 # Internal Imports (Legacy path support)
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__)) 
-PACKAGE_ROOT = os.path.dirname(CURRENT_DIR)              
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PACKAGE_ROOT = os.path.dirname(CURRENT_DIR)
 PROJECT_ROOT = os.path.dirname(PACKAGE_ROOT)
-if PROJECT_ROOT not in sys.path: sys.path.insert(0, PROJECT_ROOT)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from basilisk.core.config import Config
 from basilisk.core.database import DatabaseManager
@@ -32,9 +35,10 @@ from basilisk.modules.threat_intel import ThreatIntel
 from basilisk.modules.anti_ransomware import CanarySentry
 from basilisk.modules.yara_scanner import YaraScanner
 from basilisk.modules.network_isolation import NetworkIsolator
-from basilisk.modules.audit_scanner import AuditScanner  
+from basilisk.modules.audit_scanner import AuditScanner
 from basilisk.utils.system_monitor import get_system_metrics
 from basilisk.utils.logger import Logger
+
 
 # Global Settings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -47,7 +51,7 @@ class C2Client:
     """Handles secure HTTP/HTTPS communication with the C2 server."""
     def __init__(self, config: Config):
         self.session = requests.Session()
-        self.session.verify = False 
+        self.session.verify = False
         self.agent_id = f"AGENT_{HOSTNAME}"
         self.server_url = config.c2_url
         self.timeout = 5
@@ -65,7 +69,11 @@ class C2Client:
                 "cpu_percent": metrics.get("cpu", 0.0),
                 "ram_percent": metrics.get("ram", 0.0)
             }
-            res = self.session.post(f"{self.server_url}/api/v1/heartbeat", json=payload, timeout=2)
+            res = self.session.post(
+                f"{self.server_url}/api/v1/heartbeat",
+                json=payload,
+                timeout=2
+            )
             return res.json() if res.status_code == 200 else {}
         except Exception:
             return {}
@@ -80,7 +88,11 @@ class C2Client:
                 "message": msg,
                 "severity": severity
             }
-            self.session.post(f"{self.server_url}/api/v1/alert", json=payload, timeout=3)
+            self.session.post(
+                f"{self.server_url}/api/v1/alert",
+                json=payload,
+                timeout=3
+            )
         except Exception:
             pass
 
@@ -88,9 +100,14 @@ class C2Client:
         """Uploads large datasets (reports)."""
         try:
             logger.info(f"📤 Uploading report: {dtype} ({len(content)} items)")
-            self.session.post(f"{self.server_url}/api/v1/report/{dtype}", json={
-                "agent_id": self.agent_id, "content": content
-            }, timeout=15)
+            self.session.post(
+                f"{self.server_url}/api/v1/report/{dtype}",
+                json={
+                    "agent_id": self.agent_id,
+                    "content": content
+                },
+                timeout=15
+            )
         except Exception as e:
             logger.error(f"Report upload failed ({dtype}): {e}")
 
@@ -146,16 +163,22 @@ class BasiliskAgent:
         try:
             pid = int(arg)
             if kill_process_by_pid(pid):
-                self.c2.send_alert(f"Threat neutralized: PID {pid}", "INFO", "RESPONSE")
+                self.c2.send_alert(
+                    f"Threat neutralized: PID {pid}", "INFO", "RESPONSE"
+                )
             else:
-                self.c2.send_alert(f"Failed to kill PID {pid}", "ERROR", "RESPONSE")
+                self.c2.send_alert(
+                    f"Failed to kill PID {pid}", "ERROR", "RESPONSE"
+                )
         except ValueError:
             logger.error(f"Invalid PID: {arg}")
 
     def _cmd_yara_scan(self, path: str) -> None:
         matches = self.modules['yara'].scan_file(path)
         if matches:
-            self.c2.send_alert(f"YARA Match: {path}", "CRITICAL", "YARA_DETECTION")
+            self.c2.send_alert(
+                f"YARA Match: {path}", "CRITICAL", "YARA_DETECTION"
+            )
 
     def _cmd_report_processes(self, _: str) -> None:
         data = self.modules['proc_mon'].scan_processes()
@@ -167,7 +190,9 @@ class BasiliskAgent:
 
     def _cmd_isolate_host(self, _: str) -> None:
         if self.modules['isolator'].isolate_host():
-            self.c2.send_alert("HOST ISOLATED via Firewall.", "CRITICAL", "NET_DEFENSE")
+                self.c2.send_alert(
+                    "HOST ISOLATED via Firewall.", "CRITICAL", "NET_DEFENSE"
+                )
 
     def _cmd_unisolate_host(self, _: str) -> None:
         if self.modules['isolator'].restore_connection():
@@ -176,7 +201,9 @@ class BasiliskAgent:
     def _cmd_run_audit(self, _: str) -> None:
         report = self.modules['audit'].perform_audit()
         self.c2.upload_report("audit", report)
-        self.c2.send_alert("Compliance Audit uploaded.", "INFO", "SECURITY_AUDIT")
+        self.c2.send_alert(
+            "Compliance Audit uploaded.", "INFO", "SECURITY_AUDIT"
+        )
 
     def _cmd_report_network(self, _: str) -> None:
         data = self.modules['net_mon'].get_network_snapshot()
@@ -195,23 +222,18 @@ class BasiliskAgent:
         """
         try:
             logger.info(f"⚡ Received Task: {raw_cmd}")
-            
             action = raw_cmd
             arg = ""
-            
             if ":" in raw_cmd:
                 action, arg = raw_cmd.split(":", 1)
                 action = action.strip()
                 arg = arg.strip()
-
             handler = self.COMMAND_HANDLERS.get(action)
-            
             if handler:
-                handler(arg) # Execute the mapped function
+                handler(arg)
                 logger.success(f"Task completed: {action}")
             else:
                 logger.warning(f"Unknown command received: {action}")
-                
         except Exception as e:
             logger.error(f"Execution failed ({raw_cmd}): {e}")
             self.c2.send_alert(f"Agent Execution Error: {e}", "ERROR", "DEBUG")
@@ -219,34 +241,28 @@ class BasiliskAgent:
     # --- MAIN LOOP & WORKERS ---
     def start(self) -> None:
         self.running = True
-        
         # Start Background Services
-        if self.modules['ransom']: self.modules['ransom'].start()
-        
+        if self.modules['ransom']:
+            self.modules['ransom'].start()
         # Helper for starting threads
         def run_thread(target, name):
             t = threading.Thread(target=target, name=name, daemon=True)
             t.start()
             return t
-
         run_thread(self._worker_process, "T-Proc")
         run_thread(self._worker_fim, "T-FIM")
         run_thread(self._worker_net, "T-Net")
-
         logger.success(f"🚀 Agent Online. ID: {self.c2.agent_id}")
-
         # Main Heartbeat Loop
         try:
             while self.running:
-                if self.modules['usb_mon']: self.modules['usb_mon'].check_usb_changes()
-                
+                if self.modules['usb_mon']:
+                    self.modules['usb_mon'].check_usb_changes()
                 resp = self.c2.send_heartbeat("ONLINE")
                 cmd = resp.get("command")
-                
                 if cmd:
                     # Offload command execution to thread pool to keep heartbeat steady
                     self.command_executor.submit(self._process_command_payload, str(cmd))
-                
                 time.sleep(3)
         except KeyboardInterrupt:
             self.stop()
@@ -255,7 +271,8 @@ class BasiliskAgent:
         logger.info("Stopping agent...")
         self.running = False
         self.command_executor.shutdown(wait=False)
-        if self.modules['ransom']: self.modules['ransom'].stop()
+        if self.modules['ransom']:
+            self.modules['ransom'].stop()
         sys.exit(0)
 
     # --- WORKER WRAPPERS ---
@@ -264,24 +281,33 @@ class BasiliskAgent:
             try:
                 for p in self.modules['proc_mon'].scan_processes():
                     if p.get('risk') == 'CRITICAL':
-                        self.c2.send_alert(f"Critical Process: {p['name']}", "CRITICAL", "PROCESS_ALERT")
+                            self.c2.send_alert(
+                                f"Critical Process: {p['name']}",
+                                "CRITICAL",
+                                "PROCESS_ALERT"
+                            )
                 time.sleep(20)
-            except: time.sleep(5)
+            except Exception:
+                time.sleep(5)
 
     def _worker_fim(self):
         while self.running:
             try:
                 for f in self.config.directories:
-                    if os.path.exists(f): self.modules['fim'].scan_directory(f, mode="monitor")
+                    if os.path.exists(f):
+                        self.modules['fim'].scan_directory(f, mode="monitor")
                 time.sleep(30)
-            except: time.sleep(10)
+            except Exception:
+                time.sleep(10)
 
     def _worker_net(self):
         while self.running:
             try:
                 self.modules['net_mon'].scan_connections()
                 time.sleep(5)
-            except: time.sleep(5)
+            except Exception:
+                time.sleep(5)
+
 
 if __name__ == "__main__":
     BasiliskAgent().start()

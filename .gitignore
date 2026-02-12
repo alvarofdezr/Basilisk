@@ -14,6 +14,7 @@ __pycache__/
 venv/
 env/
 .env
+.flake8
 
 # ===========================
 # 3. Compilación (PyInstaller)
