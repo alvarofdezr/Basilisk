@@ -1,7 +1,7 @@
 # basilisk/modules/port_monitor.py
 import psutil
 import socket
-from typing import  List, Dict
+from typing import  List, Dict, Tuple
 from basilisk.core.schemas import PortRiskModel
 from basilisk.utils.logger import Logger
 
@@ -49,8 +49,8 @@ class PortMonitor:
                     desc = "Generic Port"
                     
                     if port in KNOWN_RISKS:
-                        desc, base_risk = KNOWN_RISKS[port]
-                        risk = base_risk
+                        risk_data: Tuple[str, str] = KNOWN_RISKS[port] 
+                        desc, base_risk = risk_data
                     
                     if ip in ["0.0.0.0", "::"]:
                         desc += " [EXPOSED]"

@@ -20,8 +20,8 @@ class NetworkMonitor:
         if config and hasattr(config, 'network_whitelist'):
             self.whitelist.extend([app.lower() for app in config.network_whitelist])
             
-        self.known_connections = set()
-        self.active_alerts = set()
+        self.known_connections: set[str] = set()
+        self.active_alerts: set[str] = set()
         self.thread_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="NetMonWorker")
 
     def get_network_snapshot(self) -> List[Dict[str, Any]]:

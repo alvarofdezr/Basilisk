@@ -18,10 +18,11 @@ class NetworkIsolator:
 
     def _get_c2_ip(self) -> str:
         """Resuelve la IP del C2 para la whitelist."""
+        if not self.c2_url:
+            return ""
         try:
             parsed = urlparse(self.c2_url)
             hostname = parsed.hostname
-            # Si es localhost, devolvemos IP de loopback
             if hostname in ["localhost", "127.0.0.1"]:
                 return "127.0.0.1"
             return socket.gethostbyname(hostname)
@@ -32,7 +33,6 @@ class NetworkIsolator:
     def _run_netsh(self, args: list) -> bool:
         """Ejecuta comandos netsh de forma segura."""
         try:
-            # netsh advfirewall firewall ...
             cmd = ["netsh", "advfirewall", "firewall"] + args
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
@@ -52,26 +52,19 @@ class NetworkIsolator:
 
         self.logger.warning(f"🛡️ INICIANDO PROTOCOLO DE AISLAMIENTO. C2 IP: {c2_ip}")
 
-        # 1. Limpiar reglas previas por si acaso
         self.restore_connection()
 
-        # 2. Permitir C2 (Vital para no perder control)
-        # Regla OUT al C2
         self._run_netsh([
             "add", "rule", f"name={self.rule_prefix}_C2_OUT", 
             "dir=out", "action=allow", "protocol=TCP", 
             f"remoteip={c2_ip}"
         ])
         
-        # 3. Permitir DNS (Opcional, pero recomendado para estabilidad)
         self._run_netsh([
             "add", "rule", f"name={self.rule_prefix}_DNS", 
             "dir=out", "action=allow", "protocol=UDP", "remoteport=53"
         ])
 
-        # 4. BLOQUEO TOTAL (Regla general de bloqueo)
-        # Nota: Windows Firewall procesa 'Block' con menor prioridad que 'Allow' explícito 
-        # si se configura correctamente, pero para asegurar, creamos reglas Block generales.
         self._run_netsh([
             "add", "rule", f"name={self.rule_prefix}_BLOCK_ALL_OUT", 
             "dir=out", "action=block"
@@ -88,9 +81,6 @@ class NetworkIsolator:
         """Elimina todas las reglas de aislamiento de Basilisk."""
         self.logger.info("🔓 Restaurando conectividad de red...")
         
-        # Borrar reglas por nombre (Patrón)
-        # Netsh no soporta wildcards en delete, hay que borrarlas una a una o por nombre exacto.
-        # Simplificación: Borramos las específicas que creamos.
         rules = [
             f"{self.rule_prefix}_C2_OUT",
             f"{self.rule_prefix}_DNS",

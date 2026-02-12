@@ -5,10 +5,11 @@ Handles all SQLite interactions using SQLAlchemy ORM.
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, Boolean
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from datetime import datetime
+from typing import Any
 import os
 
 # Base y Engine
-Base = declarative_base()
+Base: Any = declarative_base()
 DB_PATH = os.path.join(os.getcwd(), "basilisk.db") 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

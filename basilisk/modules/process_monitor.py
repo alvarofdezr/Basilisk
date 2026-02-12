@@ -61,6 +61,6 @@ class ProcessMonitor:
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
             except Exception as e:
-                logger.debug(f"Error processing PID {proc.pid}: {e}")
+                logger.info(f"Error processing PID {proc.pid}: {e}")
 
         return sorted(process_list, key=lambda x: x['cpu_percent'], reverse=True)

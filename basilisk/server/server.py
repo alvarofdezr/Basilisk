@@ -128,7 +128,7 @@ async def security_headers(request: Request, call_next):
 # --- AUTHENTICATION ---
 @app.post("/api/v1/auth/login")
 async def login(data: LoginSchema, request: Request):
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "unknown"
     now = datetime.now()
     
     attempts = [t for t in login_attempts[client_ip] if now - t < timedelta(seconds=LOCKOUT_TIME)]
@@ -267,7 +267,7 @@ def get_agent_report(agent_id: str, report_type: str, db: Session = Depends(get_
         AgentReport.agent_id == agent_id, 
         AgentReport.report_type == report_type
     ).first()
-    return JSONResponse(content=json.loads(report.content) if report else [])
+    return JSONResponse(content=json.loads(str(report.content)) if report and report.content else [])
 
 # --- STATIC FILES ---
 STATIC_DIR = os.path.join(SERVER_DIR, "static")

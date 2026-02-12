@@ -42,7 +42,7 @@ class Logger:
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
         except PermissionError:
-            pass # Fallback si no hay permisos de escritura
+            pass 
 
     def info(self, msg): self.logger.info(msg)
     def warning(self, msg): self.logger.warning(msg)
