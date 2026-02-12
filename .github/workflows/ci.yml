@@ -43,5 +43,5 @@ jobs:
     - name: Run Unit Tests
       run: |
         # Añadimos el directorio actual al PYTHONPATH
-        export PYTHONPATH=$PYTHONPATH:.
+        $env:PYTHONPATH = "."
         pytest
