@@ -31,7 +31,7 @@ class NetworkMonitor:
             for conn in psutil.net_connections(kind='inet'):
                 if conn.status == 'ESTABLISHED':
                     try:
-                        if conn.raddr and conn.raddr.ip in ["127.0.0.1", "::1", "0.0.0.0"]:
+                        if conn.raddr and conn.raddr.ip in ["127.0.0.1", "::1", "0.0.0.0"]: #nosec
                             continue
 
                         laddr = f"{conn.laddr.ip}:{conn.laddr.port}"

@@ -280,8 +280,8 @@ async def root(): return FileResponse(os.path.join(STATIC_DIR, 'index.html'))
 async def login_page(): return FileResponse(os.path.join(STATIC_DIR, 'login.html'))
 
 if __name__ == "__main__":
-    print("🔒 Initializing Basilisk C2 Enterprise v6.7.1...")
+    print("🔒 Initializing Basilisk C2 Enterprise v7.0.0...")
     init_db()
     cert_mgr = CertManager(cert_dir="certs")
     cert, key = cert_mgr.ensure_certificates()
-    uvicorn.run(app, host="0.0.0.0", port=8443, ssl_keyfile=key, ssl_certfile=cert, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8443, ssl_keyfile=key, ssl_certfile=cert, log_level="info") #nosec

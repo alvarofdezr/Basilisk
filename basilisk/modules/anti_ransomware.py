@@ -1,6 +1,7 @@
 # basilisk/modules/anti_ransomware.py
 import os
 import logging
+import subprocess
 from typing import Callable, Optional
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -49,8 +50,8 @@ class CanarySentry:
         if not os.path.exists(self.trap_dir):
             os.makedirs(self.trap_dir)
             try:
-                # Set hidden attribute on Windows
-                os.system(f'attrib +h "{self.trap_dir}"') 
+                os.makedirs(self.trap_dir, exist_ok=True)
+                subprocess.run(["attrib", "+h", self.trap_dir], check=True, shell=False) 
             except Exception:
                 pass
         
