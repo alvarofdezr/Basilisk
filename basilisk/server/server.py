@@ -169,11 +169,11 @@ async def heartbeat(data: HeartbeatSchema, db: Session = Depends(get_db)):
         agent = Agent(agent_id=aid)
         db.add(agent)
     
-    agent.last_seen = now
-    agent.hostname = data.hostname
-    agent.os_info = data.os
-    agent.cpu_percent = data.cpu_percent
-    agent.ram_percent = data.ram_percent
+    agent.last_seen = now                     #type: ignore
+    agent.hostname = data.hostname            #type: ignore
+    agent.os_info = data.os                   #type: ignore
+    agent.cpu_percent = data.cpu_percent      #type: ignore
+    agent.ram_percent = data.ram_percent      #type: ignore
     
     cmd_str = None
     pending_cmd = db.query(PendingCommand).filter(PendingCommand.agent_id == aid)\
@@ -212,8 +212,8 @@ async def receive_report(report_type: str, data: ReportSchema, db: Session = Dep
     ).first()
     
     if report:
-        report.content = content_json
-        report.generated_at = datetime.now()
+        report.content = content_json         #type: ignore
+        report.generated_at = datetime.now()  #type: ignore
     else:
         db.add(AgentReport(agent_id=data.agent_id, report_type=report_type, content=content_json))
         

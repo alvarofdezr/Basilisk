@@ -49,8 +49,8 @@ class PortMonitor:
                     desc = "Generic Port"
                     
                     if port in KNOWN_RISKS:
-                        risk_data: Tuple[str, str] = KNOWN_RISKS[port] 
-                        desc, base_risk = risk_data
+                        risk_data: Tuple[str, str, str] = KNOWN_RISKS[port]
+                        desc, base_risk, explanation = risk_data
                     
                     if ip in ["0.0.0.0", "::"]:
                         desc += " [EXPOSED]"
@@ -65,7 +65,8 @@ class PortMonitor:
                         service=desc,
                         process=proc_name,
                         pid=pid,
-                        risk=risk
+                        risk=risk,
+                        explanation=explanation
                     )
                     report.append(model.dict())
             

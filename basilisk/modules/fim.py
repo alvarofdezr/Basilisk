@@ -36,7 +36,6 @@ class FileIntegrityMonitor:
                     for byte_block in iter(lambda: f.read(4096), b""):
                         sha256_hash.update(byte_block)
                 else:
-                    # Optimización: Hash de cabecera + pie + tamaño
                     sha256_hash.update(f.read(SMART_CHUNK_SIZE))
                     if file_size > SMART_CHUNK_SIZE:
                         f.seek(max(file_size - SMART_CHUNK_SIZE, 0))
@@ -51,10 +50,6 @@ class FileIntegrityMonitor:
         """Recupera paths conocidos desde la BBDD."""
         known_files = set()
         try:
-            # Usamos una nueva conexión para evitar problemas de hilos si el manager no lo gestiona
-            # Pero como DatabaseManager tiene lock, usamos sus métodos si es posible.
-            # Aquí asumimos acceso directo seguro o usamos el método público.
-            # Nota: Para optimizar, mejor no exponer SQL directo aquí, pero por compatibilidad:
             with self.db.lock:
                 cursor = self.db.conn.cursor()
                 search_path = os.path.normpath(directory)
@@ -82,19 +77,13 @@ class FileIntegrityMonitor:
                 
                 try:
                     current_mtime = os.path.getmtime(full_path)
-                    
-                    # [OPTIMIZACIÓN CLAVE] Consultar caché antes de hashear
                     stored_data = self.db.get_file_baseline(full_path)
                     
                     if stored_data:
                         stored_hash, stored_mtime = stored_data
-                        
-                        # Si la fecha de modificación NO ha cambiado, asumimos que el fichero es igual.
-                        # Esto ahorra el 99% del trabajo en pasadas sucesivas.
                         if abs(current_mtime - stored_mtime) < 1.0:
                             continue 
 
-                    # Si llegamos aquí, es nuevo o ha cambiado de fecha -> HASHEAR
                     current_hash = self.calculate_hash(full_path)
                     if not current_hash: continue
 
@@ -107,7 +96,6 @@ class FileIntegrityMonitor:
                                 msg = f"⚠️ INTEGRIDAD COMPROMETIDA (Modificado): {full_path}"
                                 self._log("warning", msg)
                                 self.db.log_event("FILE_MOD", msg, "CRITICAL")
-                                # Actualizamos para no alertar infinitamente
                                 self.db.update_baseline(full_path, current_hash, current_mtime)
                         else:
                             msg = f"📄 NUEVO ARCHIVO: {full_path}"
@@ -117,7 +105,6 @@ class FileIntegrityMonitor:
                             
                 except OSError: pass
 
-        # Detección de Eliminados
         if mode == "monitor":
             known_files = self._get_db_files_in_dir(directory_path)
             deleted_files = known_files - found_files_on_disk
@@ -126,7 +113,6 @@ class FileIntegrityMonitor:
                     msg = f"🗑️ ARCHIVO ELIMINADO: {deleted_path}"
                     self._log("warning", msg)
                     self.db.log_event("FILE_DEL", msg, "CRITICAL")
-                    # Borrar de BBDD para limpiar estado
                     with self.db.lock:
                         self.db.cursor.execute("DELETE FROM files_baseline WHERE path=?", (deleted_path,))
                         self.db.conn.commit()

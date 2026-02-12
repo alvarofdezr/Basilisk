@@ -7,11 +7,11 @@ import psutil
 import os
 import sys
 import ctypes
+from typing import Any
 from ctypes import wintypes
 from typing import Dict, Optional
 from basilisk.utils.logger import Logger
 
-# Definición de estructuras de Windows necesarias para forense
 class PROCESS_BASIC_INFORMATION(ctypes.Structure):
     _fields_ = [
         ('Reserved1', ctypes.c_void_p),
@@ -51,18 +51,16 @@ class MemoryScanner:
         )
         return buffer.raw if success else None
 
-    def detect_hollowing(self, pid: int) -> Dict[str, any]:
+    def detect_hollowing(self, pid: int) -> Dict[str, Any]:
         """
         Analiza si el proceso ha sido vaciado (Hollowed) comparando
         la cabecera PE en memoria con la esperada.
         """
-        # [PROTECCIÓN DOCKER] Si no es Windows, salimos sin error.
         if not self.is_windows:
             return {"suspicious": False, "technique": "N/A (Linux Env)"}
 
         process_handle = None
         try:
-            # 1. Abrir proceso con permisos de lectura
             process_handle = self.k32.OpenProcess(
                 self.PROCESS_QUERY_INFORMATION | self.PROCESS_VM_READ, 
                 False, 
@@ -72,30 +70,26 @@ class MemoryScanner:
             if not process_handle:
                 return {"suspicious": False, "technique": "Access Denied"}
 
-            # 2. Obtener información básica para encontrar el PEB (Process Environment Block)
             pbi = PROCESS_BASIC_INFORMATION()
             return_len = ctypes.c_ulong()
             
             status = self.nt.NtQueryInformationProcess(
                 process_handle,
-                0, # ProcessBasicInformation
+                0, 
                 ctypes.byref(pbi),
                 ctypes.sizeof(pbi),
                 ctypes.byref(return_len)
             )
 
-            if status != 0: # STATUS_SUCCESS
+            if status != 0: 
                 self.k32.CloseHandle(process_handle)
                 return {"suspicious": False, "technique": "Query Failed"}
 
-            # 3. Leer la dirección base de la imagen desde el PEB
-            # El ImageBaseAddress está en el offset 0x10 del PEB (en x64)
             peb_address = pbi.PebBaseAddress
             if not peb_address:
                 self.k32.CloseHandle(process_handle)
                 return {"suspicious": False, "technique": "No PEB"}
 
-            # Offset 0x10 para x64, 0x8 para x86. Asumimos x64 para este EDR moderno.
             image_base_buffer = self._read_memory(process_handle, peb_address + 0x10, 8)
             if not image_base_buffer:
                 self.k32.CloseHandle(process_handle)
@@ -103,15 +97,11 @@ class MemoryScanner:
                 
             image_base = int.from_bytes(image_base_buffer, byteorder='little')
 
-            # 4. Leer la cabecera PE del ejecutable en memoria
-            # Leemos los primeros 0x200 bytes donde debería estar la firma 'MZ'
             header = self._read_memory(process_handle, image_base, 0x200)
             
             if header:
-                # Chequeo de firma MZ (Mark Zbikowski)
                 if header[0:2] != b'MZ':
                     self.k32.CloseHandle(process_handle)
-                    # Si la memoria base no empieza por MZ, algo raro pasa (o no es un EXE estándar)
                     return {
                         "suspicious": True, 
                         "technique": "Header Mismatch (No MZ)"
@@ -119,7 +109,6 @@ class MemoryScanner:
             
             self.k32.CloseHandle(process_handle)
             
-            # Si llegamos aquí, tiene estructura de proceso válida
             return {"suspicious": False, "technique": "None"}
 
         except Exception as e:

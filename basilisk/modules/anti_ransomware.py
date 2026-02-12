@@ -16,7 +16,7 @@ CANARY_FILES = {
 
 class RansomwareHandler(FileSystemEventHandler):
     """Handles filesystem events within the Canary directory."""
-    def __init__(self, callback_func: Callable[[str], None]):
+    def __init__(self, callback_func: Callable[[str], None] = None):
         self.callback_func = callback_func
 
     def on_modified(self, event):
