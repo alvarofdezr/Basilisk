@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basilisk C2 | Restricted Access</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body>
+
+    <canvas id="networkCanvas"></canvas>
+    <div class="overlay"></div>
+
+    <div class="login-container">
+        <div class="login-header">
+            <div class="logo-glow">
+                <img src="/static/img/logo.ico" alt="Basilisk Logo" class="logo" width="200">
+            </div>
+            <h1>BASILISK <span class="version">v7.1.0</span></h1>
+            <p class="subtitle">ADVANCED PERSISTENT THREAT PLATFORM</p>
+        </div>
+
+        <div class="login-form">
+            <div class="input-group">
+                <i class="fa-solid fa-user-astronaut input-icon"></i>
+                <input type="text" id="username" placeholder="OPERATOR ID" autocomplete="off">
+                <div class="input-border"></div>
+            </div>
+
+            <div class="input-group">
+                <i class="fa-solid fa-key input-icon"></i>
+                <input type="password" id="password" placeholder="ACCESS KEY">
+                <div class="input-border"></div>
+            </div>
+
+            <button id="loginBtn" onclick="doLogin()">
+                <span>INITIALIZE UPLINK</span>
+                <i class="fa-solid fa-arrow-right-long"></i>
+            </button>
+        </div>
+
+        <div class="login-footer">
+            <div id="status-text" class="status-line">SYSTEM STANDBY...</div>
+            <div class="disclaimer">UNAUTHORIZED ACCESS IS A FEDERAL OFFENSE</div>
+        </div>
+    </div>
+
+    <script src="/static/js/login.js"></script>
+</body>
+</html>s

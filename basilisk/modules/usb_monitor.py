@@ -9,13 +9,13 @@ from basilisk.utils.logger import Logger
 class USBMonitor:
     """
     Monitor de dispositivos de almacenamiento extraíbles.
-    [v6.6] Conectado al Dashboard Basilisk (C2).
+    [v7.1.0] Conectado al Dashboard Basilisk (C2).
     """
 
     def __init__(self, db_manager, c2_client=None, notifier=None):
         self.db = db_manager
-        self.c2 = c2_client      # [NUEVO] Conexión al Dashboard
-        self.notifier = notifier  # [LEGACY] Telegram (Opcional)
+        self.c2 = c2_client
+        self.notifier = notifier
         self.logger = Logger()
 
         # Estado inicial
@@ -34,8 +34,6 @@ class USBMonitor:
                         drives.add(f"{letter}:\\")
                     bitmask >>= 1
             else:
-                # Fallback básico para Linux (solo lista /media o /mnt)
-                # En un EDR real usaríamos pyudev
                 if os.path.exists('/media'):
                     drives.update([os.path.join('/media', d) for d in os.listdir('/media')])
         except Exception as e:
@@ -47,34 +45,27 @@ class USBMonitor:
         try:
             new_state = self._get_active_drives()
 
-            # 1. Detección de INSERCIÓN (Nuevo USB)
             added_drives = new_state - self.current_drives
             for drive in added_drives:
                 msg = f"🔌 Dispositivo USB CONECTADO: Unidad {drive}"
                 self.logger.warning(msg)
 
-                # Log Local
                 self.db.log_event("USB_EVENT", msg, "WARNING")
 
-                # Alerta Dashboard (Icono USB Amarillo)
                 if self.c2:
                     self.c2.send_alert(msg, "WARNING", "USB_EVENT")
 
-                # Alerta Telegram
                 if self.notifier:
                     self.notifier.send_alert(f"💾 {msg}")
 
-            # 2. Detección de EXTRACCIÓN
             removed_drives = self.current_drives - new_state
             for drive in removed_drives:
                 msg = f"❌ Dispositivo USB DESCONECTADO: Unidad {drive}"
                 self.logger.info(msg)
 
-                # Opcional: Avisar al C2 (Severidad INFO)
                 if self.c2:
                     self.c2.send_alert(msg, "INFO", "USB_EVENT")
 
-            # Actualizar estado
             if added_drives or removed_drives:
                 self.current_drives = new_state
 

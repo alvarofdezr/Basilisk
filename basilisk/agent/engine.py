@@ -1,7 +1,7 @@
 
 # agent/agent_core.py
 """
-Basilisk EDR - Agent Core v6.8 (Refactored & Modular)
+Basilisk EDR - Agent Core v7.1.0 (Refactored & Modular)
 Enterprise-grade endpoint agent with Command Dispatcher architecture.
 Author: Álvaro Fernández Ramos
 """
@@ -45,7 +45,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 HOSTNAME = platform.node()
 logger = Logger()
 
-print("[+] Starting Basilisk Agent Core v6.8...")
+print("[+] Starting Basilisk Agent Core v7.1.0...")
 
 
 class C2Client:
@@ -120,7 +120,7 @@ class BasiliskAgent:
     """
 
     def __init__(self):
-        logger.info("🛡️ Initializing Basilisk Agent v6.8 (Dispatcher Mode)...")
+        logger.info("🛡️ Initializing Basilisk Agent v7.1.0 (Dispatcher Mode)...")
         self.running = False
         self.config = Config()
         self.db = DatabaseManager(db_name=self.config.db_name)

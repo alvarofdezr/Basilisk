@@ -1,0 +1,193 @@
+/* static/css/dashboard.css - v7.1 Cyberpunk Edition */
+
+:root {
+    --bg-dark: #020617;
+    --glass-bg: rgba(15, 23, 42, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --neon-green: #10b981;
+    --neon-red: #ef4444;
+    --neon-blue: #3b82f6;
+    --text-main: #e2e8f0;
+    --text-muted: #94a3b8;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    /* Fondo de cuadrícula técnica sutil */
+    background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 30px 30px;
+}
+
+/* --- SIDEBAR (Barra Lateral de Cristal) --- */
+#sidebar {
+    height: 100vh; width: 260px; position: fixed; top: 0; left: 0;
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-right: 1px solid var(--glass-border);
+    display: flex; flex-direction: column; z-index: 1000;
+    box-shadow: 5px 0 25px rgba(0,0,0,0.5);
+}
+
+.brand-logo { 
+    padding: 25px; 
+    border-bottom: 1px solid var(--glass-border); 
+    background: rgba(0, 0, 0, 0.2); 
+}
+
+.brand-title { 
+    font-family: 'JetBrains Mono', monospace; 
+    font-weight: 800; color: #fff; 
+    font-size: 1.4rem; letter-spacing: -1px; 
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.nav-link-custom {
+    padding: 16px 25px; color: var(--text-muted); cursor: pointer; transition: all 0.3s;
+    font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+    border-left: 3px solid transparent; display: flex; align-items: center;
+}
+
+.nav-link-custom:hover { 
+    background: rgba(255, 255, 255, 0.05); 
+    color: #fff; 
+    padding-left: 30px; /* Pequeña animación de desplazamiento */
+}
+
+.nav-link-custom.active { 
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.1), transparent);
+    color: var(--neon-green); 
+    border-left-color: var(--neon-green); 
+    text-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+/* --- MAIN CONTENT --- */
+#main-content { margin-left: 260px; padding: 40px; min-height: 100vh; }
+
+/* KPI Cards (Tarjetas de Datos) */
+.kpi-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border-radius: 12px; 
+    border: 1px solid var(--glass-border);
+    transition: all 0.3s ease; 
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+}
+
+.kpi-card:hover { 
+    transform: translateY(-5px); 
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.5);
+}
+
+/* Barra de color superior en tarjetas */
+.kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+}
+
+.kpi-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); font-weight: 700; }
+.kpi-value { font-size: 2.2rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-shadow: 0 0 15px currentColor; }
+
+/* --- TABLAS --- */
+.table { color: var(--text-main); --bs-table-bg: transparent; }
+
+.table thead th {
+    background: rgba(15, 23, 42, 0.9); 
+    color: var(--text-muted); 
+    font-size: 0.7rem; text-transform: uppercase;
+    font-weight: 800; letter-spacing: 1px; 
+    border-bottom: 1px solid var(--glass-border);
+    padding: 15px;
+}
+
+.table td { 
+    border-bottom: 1px solid var(--glass-border); 
+    vertical-align: middle; 
+    padding: 15px;
+    font-size: 0.9rem; 
+    font-family: 'Inter', sans-serif;
+}
+
+.table tr:hover td { background-color: rgba(255, 255, 255, 0.02); }
+
+/* --- AGENT LIST --- */
+.agent-list-container { max-height: 600px; overflow-y: auto; padding-right: 5px; }
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0b1120; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+.agent-item {
+    background: rgba(30, 41, 59, 0.4); 
+    padding: 15px; margin-bottom: 10px; border-radius: 8px; 
+    border: 1px solid var(--glass-border);
+    cursor: pointer; transition: all 0.2s; 
+    display: flex; align-items: center; justify-content: space-between;
+}
+
+.agent-item:hover { 
+    background: rgba(30, 41, 59, 0.8); 
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.15);
+}
+
+/* --- AUDIT WIDGET (Estilo Integrado) --- */
+.audit-widget { 
+    background: rgba(2, 6, 23, 0.5); 
+    border: 1px solid var(--glass-border); 
+    border-radius: 12px; padding: 25px; 
+}
+.audit-card { 
+    background: rgba(30, 41, 59, 0.3); 
+    padding: 15px; border-radius: 8px; 
+    border: 1px solid var(--glass-border); margin-bottom: 15px;
+}
+.status-dot { box-shadow: 0 0 8px currentColor; }
+.card-header { color: #fff; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.5px; }
+
+/* --- MODAL --- */
+.modal-content {
+    background-color: #0f172a; /* Fallback */
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 0 50px rgba(0,0,0,0.8);
+}
+.modal-header { border-bottom: 1px solid var(--glass-border); }
+.nav-tabs .nav-link { color: var(--text-muted); border: none; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.nav-tabs .nav-link.active { background: transparent; color: var(--neon-green); border-bottom: 2px solid var(--neon-green); }
+
+/* --- NETWORK MAP --- */
+#mynetwork {
+    background: rgba(2, 6, 23, 0.8);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+}
+
+/* Utilidades */
+.font-monospace { font-family: 'JetBrains Mono', monospace !important; }
+.text-neon { color: var(--neon-green); text-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
+.bg-panel { background: var(--glass-bg); border: 1px solid var(--glass-border); }
+
+
+#incident-limit {
+    background-color: rgba(30, 41, 59, 0.8) !important;
+    border-color: var(--glass-border) !important;
+    color: var(--text-muted) !important;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+#incident-limit:focus {
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    border-color: var(--neon-green) !important;
+}

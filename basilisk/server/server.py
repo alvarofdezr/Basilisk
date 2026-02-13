@@ -1,7 +1,6 @@
 """
-Basilisk C2 Server v6.7.1 (Fixed & Refactored)
+Basilisk C2 Server v7.1.0 (Fixed & Refactored)
 Enterprise-grade Command & Control Server.
-Compatible con index.html v6.6
 """
 import sys
 import os
@@ -18,6 +17,8 @@ if SERVER_DIR not in sys.path:
     sys.path.insert(0, SERVER_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
+STATIC_DIR = os.path.join(SERVER_DIR, "static")
+TEMPLATES_DIR = os.path.join(SERVER_DIR, "templates")
 
 import uvicorn
 from fastapi import FastAPI, Request, Depends, HTTPException
@@ -95,7 +96,13 @@ class LoginSchema(BaseModel):
 
 
 # --- APP FACTORY ---
-app = FastAPI(title="Basilisk C2", version="6.7.1", docs_url=None, redoc_url=None)
+app = FastAPI(title="Basilisk C2",
+              version="7.1.0",
+              description="Enterprise-grade Command & Control Server",
+              docs_url=None,
+              redoc_url=None)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # CORS Policy
 origins = [
@@ -303,12 +310,18 @@ if os.path.exists(STATIC_DIR):
 
 @app.get("/")
 async def root():
-    return FileResponse(os.path.join(STATIC_DIR, 'index.html'))
+    index_path = os.path.join(TEMPLATES_DIR, "index.html")
+    if not os.path.exists(index_path):
+        return {"error": f"No se encuentra el dashboard en: {index_path}"}   
+    return FileResponse(index_path)
 
 
 @app.get("/login")
 async def login_page():
-    return FileResponse(os.path.join(STATIC_DIR, 'login.html'))
+    login_path = os.path.join(TEMPLATES_DIR, "login.html")
+    if not os.path.exists(login_path):
+        return {"error": "Login template not found"}
+    return FileResponse(login_path)
 
 if __name__ == "__main__":
     print("🔒 Initializing Basilisk C2 Enterprise v7.0.0...")
