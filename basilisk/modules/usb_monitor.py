@@ -1,22 +1,23 @@
 # basilisk/modules/usb_monitor.py
-import time
 import os
 import string
 import platform
-from typing import Set, List
+from typing import Set
 from basilisk.utils.logger import Logger
+
 
 class USBMonitor:
     """
     Monitor de dispositivos de almacenamiento extraíbles.
     [v6.6] Conectado al Dashboard Basilisk (C2).
     """
+
     def __init__(self, db_manager, c2_client=None, notifier=None):
         self.db = db_manager
         self.c2 = c2_client      # [NUEVO] Conexión al Dashboard
-        self.notifier = notifier # [LEGACY] Telegram (Opcional)
+        self.notifier = notifier  # [LEGACY] Telegram (Opcional)
         self.logger = Logger()
-        
+
         # Estado inicial
         self.current_drives = self._get_active_drives()
         self.logger.info(f"USB Monitor Initialized. Active drives: {self.current_drives}")
@@ -45,22 +46,22 @@ class USBMonitor:
         """Compara el estado actual con el anterior para detectar cambios."""
         try:
             new_state = self._get_active_drives()
-            
+
             # 1. Detección de INSERCIÓN (Nuevo USB)
             added_drives = new_state - self.current_drives
             for drive in added_drives:
                 msg = f"🔌 Dispositivo USB CONECTADO: Unidad {drive}"
                 self.logger.warning(msg)
-                
+
                 # Log Local
                 self.db.log_event("USB_EVENT", msg, "WARNING")
-                
+
                 # Alerta Dashboard (Icono USB Amarillo)
-                if self.c2: 
+                if self.c2:
                     self.c2.send_alert(msg, "WARNING", "USB_EVENT")
-                
+
                 # Alerta Telegram
-                if self.notifier: 
+                if self.notifier:
                     self.notifier.send_alert(f"💾 {msg}")
 
             # 2. Detección de EXTRACCIÓN
@@ -68,7 +69,7 @@ class USBMonitor:
             for drive in removed_drives:
                 msg = f"❌ Dispositivo USB DESCONECTADO: Unidad {drive}"
                 self.logger.info(msg)
-                
+
                 # Opcional: Avisar al C2 (Severidad INFO)
                 if self.c2:
                     self.c2.send_alert(msg, "INFO", "USB_EVENT")

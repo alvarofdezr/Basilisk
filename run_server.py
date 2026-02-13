@@ -9,9 +9,9 @@ from basilisk.utils.cert_manager import CertManager
 
 if __name__ == "__main__":
     print("🚀 Starting Basilisk C2 Server...")
-    
+
     init_db()
-    
+
     cert_mgr = CertManager(cert_dir="certs")
     cert, key = cert_mgr.ensure_certificates()
 

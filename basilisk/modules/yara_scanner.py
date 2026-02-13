@@ -3,7 +3,8 @@ import os
 from typing import List, Dict, Any
 from basilisk.utils.logger import Logger
 
-MAX_SCAN_SIZE = 100 * 1024 * 1024 
+MAX_SCAN_SIZE = 100 * 1024 * 1024
+
 
 class YaraScanner:
     def __init__(self, rules_path="basilisk/rules/index.yar"):
@@ -35,10 +36,10 @@ class YaraScanner:
             if size > MAX_SCAN_SIZE:
                 self.logger.warning(f"File skipped (size limit {size/1024/1024:.2f} MB): {filepath}")
                 return []
-                
+
             if size == 0:
                 return []
-                
+
         except Exception as e:
             self.logger.error(f"Error accessing file: {e}")
             return []
@@ -46,7 +47,7 @@ class YaraScanner:
         matches = []
         try:
             yara_matches = self.rules.match(filepath, timeout=10)
-            
+
             for match in yara_matches:
                 threat_info = {
                     "rule": match.rule,
@@ -56,7 +57,7 @@ class YaraScanner:
                 }
                 matches.append(threat_info)
                 self.logger.error(f"Threat confirmed [{match.rule}] in {os.path.basename(filepath)}")
-                
+
         except Exception as e:
             self.logger.error(f"Scanner engine error: {e}")
 

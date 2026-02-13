@@ -9,6 +9,7 @@ from typing import Dict, Any
 from basilisk.utils.logger import Logger
 from basilisk.core.schemas import AuditModel, FirewallModel
 
+
 class AuditScanner:
     def __init__(self):
         self.logger = Logger()
@@ -17,7 +18,8 @@ class AuditScanner:
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path, 0, winreg.KEY_READ) as k:
                 return winreg.QueryValueEx(k, key)[0]
-        except: return None
+        except BaseException:
+            return None
 
     def perform_audit(self) -> Dict[str, Any]:
         """Runs compliance checks and returns a validated report."""
@@ -35,8 +37,9 @@ class AuditScanner:
             val = self._read_reg(path, "EnableFirewall")
             state = "ACTIVE" if val == 1 else "DISABLED"
             fw_status[name] = state
-            if val == 1: active_cnt += 1
-        
+            if val == 1:
+                active_cnt += 1
+
         fw_model = FirewallModel(
             Domain=fw_status["Domain"],
             Standard=fw_status["Standard"],
@@ -52,13 +55,15 @@ class AuditScanner:
             if p.info['name'] == "MsMpEng.exe":
                 defender_status = "ACTIVE"
                 break
-        
+
         audit = AuditModel(
             firewall=fw_model,
             uac=uac_status,
             defender=defender_status,
-            last_update=str(self._read_reg(r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install", "LastSuccessTime") or "Unknown"),
-            scan_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
-        
+            last_update=str(
+                self._read_reg(
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install",
+                    "LastSuccessTime") or "Unknown"),
+            scan_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
         return audit.dict()

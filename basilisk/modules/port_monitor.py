@@ -6,10 +6,10 @@ from basilisk.core.schemas import PortRiskModel
 from basilisk.utils.logger import Logger
 
 KNOWN_RISKS = {
-    21:  ("FTP", "CRITICAL", "Protocolo inseguro de transferencia de archivos (Texto plano)"),
-    22:  ("SSH", "WARNING", "Acceso remoto seguro (revisar configuración de claves)"),
-    23:  ("Telnet", "CRITICAL", "Acceso remoto inseguro (Texto plano, credenciales expuestas)"),
-    80:  ("HTTP", "INFO", "Servidor Web estándar"),
+    21: ("FTP", "CRITICAL", "Protocolo inseguro de transferencia de archivos (Texto plano)"),
+    22: ("SSH", "WARNING", "Acceso remoto seguro (revisar configuración de claves)"),
+    23: ("Telnet", "CRITICAL", "Acceso remoto inseguro (Texto plano, credenciales expuestas)"),
+    80: ("HTTP", "INFO", "Servidor Web estándar"),
     443: ("HTTPS", "INFO", "Servidor Web Seguro (TLS)"),
     445: ("SMB", "CRITICAL", "Compartición de archivos (Vector de WannaCry/EternalBlue)"),
     135: ("RPC", "HIGH", "Ejecución remota de procedimientos (Vector de movimiento lateral)"),
@@ -21,13 +21,14 @@ KNOWN_RISKS = {
     8080: ("HTTP-Alt", "INFO", "Servidor Web Alternativo"),
 }
 
+
 class PortMonitor:
     def __init__(self, db_manager, c2_client=None, notifier=None):
         self.db = db_manager
-        self.c2 = c2_client  
+        self.c2 = c2_client
         self.logger = Logger()
         self.previous_ports = set()
-        
+
     def get_full_report(self) -> List[Dict]:
         """Generates a detailed audit report."""
         report = []
@@ -37,7 +38,7 @@ class PortMonitor:
                     port = conn.laddr.port
                     ip = conn.laddr.ip
                     proto = "TCP" if conn.type == socket.SOCK_STREAM else "UDP"
-                    
+
                     proc_name, pid = "Unknown", 0
                     if conn.pid:
                         try:
@@ -48,21 +49,22 @@ class PortMonitor:
 
                     risk = "INFO"
                     desc = "Generic Port"
-                    explanation: Optional[str] = None 
+                    explanation: Optional[str] = None
 
                     if port in KNOWN_RISKS:
                         risk_data: Tuple[str, str, str] = KNOWN_RISKS[port]
                         desc = risk_data[0]
-                        risk = risk_data[1]      
-                        explanation = risk_data[2] 
-                    
-                    if ip in ["0.0.0.0", "::"]: #nosec
+                        risk = risk_data[1]
+                        explanation = risk_data[2]
+
+                    if ip in ["0.0.0.0", "::"]:  # nosec
                         desc += " [EXPOSED]"
-                        if risk == "WARNING": 
+                        if risk == "WARNING":
                             risk = "HIGH"
                             explanation = (explanation or "") + " + Expuesto a Internet"
                     else:
-                        if risk == "HIGH": risk = "WARNING"
+                        if risk == "HIGH":
+                            risk = "WARNING"
 
                     model = PortRiskModel(
                         port=port,
@@ -75,11 +77,11 @@ class PortMonitor:
                         explanation=explanation
                     )
                     report.append(model.dict())
-            
+
             risk_map = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
             report.sort(key=lambda x: risk_map.get(x['risk'], 4))
-            
+
         except Exception as e:
             self.logger.error(f"Port audit failed: {e}")
-            
+
         return report

@@ -3,10 +3,12 @@ import requests
 from basilisk.core.config import Config
 from basilisk.utils.logger import Logger
 
+
 class TelegramNotifier:
     """
     Handles push notifications via Telegram Bot API.
     """
+
     def __init__(self, config: Config):
         self.logger = Logger()
         self.enabled = config.data.get("alerts", {}).get("telegram", {}).get("enabled", False)

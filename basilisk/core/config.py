@@ -5,15 +5,17 @@ import os
 import sys
 from dotenv import load_dotenv
 
+
 class Config:
     """
     Loads configuration from environment variables (Priority 1) and 'config.yaml' (Priority 2).
     Includes robust path detection for .env files in different execution contexts.
     """
+
     def __init__(self, config_path: str = "config.yaml") -> None:
         # Calcular rutas absolutas para garantizar la carga del .env
-        current_dir = os.path.dirname(os.path.abspath(__file__)) 
-        project_root = os.path.abspath(os.path.join(current_dir, '..', '..')) 
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
         env_path = os.path.join(project_root, '.env')
 
         # Cargar variables de entorno silenciosamente
@@ -71,11 +73,11 @@ class Config:
     @property
     def telegram_chat_id(self) -> str:
         return os.getenv("BASILISK_TELEGRAM_CHAT_ID", "")
-    
+
     @property
     def c2_url(self) -> str:
         return os.getenv("BASILISK_C2_URL", "https://localhost:8443")
-    
+
     @property
     def server_secret_key(self) -> str:
         return os.getenv("BASILISK_SERVER_SECRET_KEY", "")

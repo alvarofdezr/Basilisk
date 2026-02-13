@@ -8,11 +8,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from basilisk.utils.logger import Logger
 
+
 class CertManager:
     """
     Automated PKI Infrastructure.
     Generates self-signed X.509 certificates on the fly if missing.
     """
+
     def __init__(self, cert_dir: str = "certs"):
         self.logger = Logger()
         self.cert_dir = os.path.abspath(cert_dir)
@@ -64,7 +66,7 @@ class CertManager:
             datetime.datetime.utcnow()
         ).not_valid_after(
             # Valid for 5 years
-            datetime.datetime.utcnow() + datetime.timedelta(days=365*5)
+            datetime.datetime.utcnow() + datetime.timedelta(days=365 * 5)
         ).add_extension(
             x509.SubjectAlternativeName([x509.DNSName(u"localhost")]),
             critical=False,

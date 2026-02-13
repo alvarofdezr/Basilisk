@@ -5,9 +5,11 @@ from argon2.exceptions import VerifyMismatchError
 # Configuración por defecto recomendada por OWASP
 ph = PasswordHasher()
 
+
 def hash_password(password: str) -> str:
     """Genera un hash Argon2 seguro."""
     return ph.hash(password)
+
 
 def verify_password(stored_hash: str, password: str) -> bool:
     """

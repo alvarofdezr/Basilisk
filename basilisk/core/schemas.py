@@ -5,6 +5,7 @@ Defines the strict structure of telemetry data shared across modules.
 from typing import Optional
 from pydantic import BaseModel
 
+
 class ProcessModel(BaseModel):
     pid: int
     name: str
@@ -16,6 +17,7 @@ class ProcessModel(BaseModel):
     risk_score: int = 0
     risk_level: str = "INFO"  # INFO, WARNING, CRITICAL
 
+
 class NetworkConnModel(BaseModel):
     """Snapshot de una conexión activa para el mapa de red."""
     src: str
@@ -23,6 +25,7 @@ class NetworkConnModel(BaseModel):
     process: str
     pid: int
     status: str = "ESTABLISHED"
+
 
 class PortRiskModel(BaseModel):
     """Análisis de riesgo de un puerto abierto."""
@@ -35,11 +38,13 @@ class PortRiskModel(BaseModel):
     risk: str  # CRITICAL, HIGH, WARNING, INFO
     explanation: Optional[str] = None
 
+
 class FirewallModel(BaseModel):
     Domain: str
     Standard: str
     Public: str
     Overall: str
+
 
 class AuditModel(BaseModel):
     """Informe de cumplimiento del sistema."""

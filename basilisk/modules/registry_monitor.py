@@ -1,19 +1,21 @@
 # basilisk/modules/registry_monitor.py
 import winreg
-from typing import Dict, Tuple, List
+from typing import Dict
 from basilisk.core.database import DatabaseManager
 from basilisk.utils.logger import Logger
+
 
 class RegistryMonitor:
     """
     Monitors Windows Registry for Persistence Mechanisms.
     Scans Run keys (HKLM/HKCU) for unauthorized startup entries.
     """
+
     def __init__(self, db_manager: DatabaseManager, notifier):
         self.db = db_manager
         self.notifier = notifier
         self.logger = Logger()
-        
+
         # Monitored Hives
         self.monitored_keys = [
             (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run"),
@@ -21,7 +23,7 @@ class RegistryMonitor:
             (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run"),
             (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\RunOnce"),
         ]
-        
+
         self.baseline = self._scan_all_keys()
         self.logger.info(f"RegistryMonitor: Watching {len(self.baseline)} persistence points.")
 
@@ -51,9 +53,9 @@ class RegistryMonitor:
     def check_registry_changes(self) -> None:
         """Compares current registry state against baseline."""
         current_snapshot = self._scan_all_keys()
-        
+
         new_entries = set(current_snapshot.keys()) - set(self.baseline.keys())
-        
+
         # Detect Modifications
         for key in current_snapshot:
             if key in self.baseline:

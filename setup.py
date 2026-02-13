@@ -11,12 +11,12 @@ Date: 2025-01-15
 extra_requirements = []
 if sys.platform.startswith('win'):
     extra_requirements.append('pywin32')
-    
+
 setup(
-    name = "Basilisk",
-    version = "6.7.1",
-    description= "Basilisk EDR - Advanced Endpoint Detection and Response System",
-    author = "Álvaro Fernández Ramos",
+    name="Basilisk",
+    version="6.7.1",
+    description="Basilisk EDR - Advanced Endpoint Detection and Response System",
+    author="Álvaro Fernández Ramos",
     packages=find_packages(),
     python_requires='>=3.10',
     install_requires=[
@@ -29,10 +29,10 @@ setup(
         "PyYAML",
         "python-multipart",
         "itsdangerous",
-        
+
         # System & Security
         "psutil",
-        "watchdog",      
+        "watchdog",
         "yara-python",
         "argon2-cffi",
         "python-dotenv",

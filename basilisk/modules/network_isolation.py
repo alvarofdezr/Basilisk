@@ -8,8 +8,9 @@ Permite aislar un host manteniendo la línea de vida con el C2.
 import subprocess
 import socket
 from urllib.parse import urlparse
-from typing import List, Optional
+from typing import List
 from basilisk.utils.logger import Logger
+
 
 class NetworkIsolator:
     def __init__(self, c2_url: str):
@@ -21,19 +22,19 @@ class NetworkIsolator:
         """Resuelve la IP del C2 para la whitelist de forma segura."""
         if not self.c2_url:
             return ""
-            
+
         try:
             parsed = urlparse(self.c2_url)
             hostname = parsed.hostname
-            
+
             if not hostname:
                 return ""
-                
+
             if hostname in ["localhost", "127.0.0.1"]:
                 return "127.0.0.1"
-                
+
             return socket.gethostbyname(hostname)
-            
+
         except Exception as e:
             self.logger.error(f"Fallo resolviendo IP C2: {e}")
             return ""
@@ -54,7 +55,7 @@ class NetworkIsolator:
         3. Permite DNS (UDP 53) para resolución básica.
         """
         c2_ip = self._get_c2_ip()
-        
+
         if not c2_ip:
             self.logger.error("No se puede aislar: Imposible resolver IP del C2.")
             return False
@@ -64,22 +65,22 @@ class NetworkIsolator:
         self.restore_connection()
 
         self._run_netsh([
-            "add", "rule", f"name={self.rule_prefix}_C2_OUT", 
-            "dir=out", "action=allow", "protocol=TCP", 
+            "add", "rule", f"name={self.rule_prefix}_C2_OUT",
+            "dir=out", "action=allow", "protocol=TCP",
             f"remoteip={c2_ip}"
         ])
-        
+
         self._run_netsh([
-            "add", "rule", f"name={self.rule_prefix}_DNS", 
+            "add", "rule", f"name={self.rule_prefix}_DNS",
             "dir=out", "action=allow", "protocol=UDP", "remoteport=53"
         ])
 
         self._run_netsh([
-            "add", "rule", f"name={self.rule_prefix}_BLOCK_ALL_OUT", 
+            "add", "rule", f"name={self.rule_prefix}_BLOCK_ALL_OUT",
             "dir=out", "action=block"
         ])
         self._run_netsh([
-            "add", "rule", f"name={self.rule_prefix}_BLOCK_ALL_IN", 
+            "add", "rule", f"name={self.rule_prefix}_BLOCK_ALL_IN",
             "dir=in", "action=block"
         ])
 
@@ -89,16 +90,16 @@ class NetworkIsolator:
     def restore_connection(self) -> bool:
         """Elimina todas las reglas de aislamiento de Basilisk."""
         self.logger.info("🔓 Restaurando conectividad de red...")
-        
+
         rules = [
             f"{self.rule_prefix}_C2_OUT",
             f"{self.rule_prefix}_DNS",
             f"{self.rule_prefix}_BLOCK_ALL_OUT",
             f"{self.rule_prefix}_BLOCK_ALL_IN"
         ]
-        
+
         for rule in rules:
             self._run_netsh(["delete", "rule", f"name={rule}"])
-            
+
         self.logger.success("✅ Conectividad restaurada.")
         return True

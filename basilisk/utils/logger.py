@@ -1,6 +1,6 @@
 import logging
 import sys
-import os
+
 
 class Logger:
     """
@@ -18,7 +18,7 @@ class Logger:
     def _initialize_logger(self):
         self.logger = logging.getLogger("basilisk")
         self.logger.setLevel(logging.INFO)
-        
+
         if self.logger.hasHandlers():
             self.logger.handlers.clear()
 
@@ -38,13 +38,21 @@ class Logger:
 
         # File Handler
         try:
-            file_handler = logging.FileHandler("basilisk_audit.log", encoding='utf-8')
+            file_handler = logging.FileHandler("basilisk_audit.log",
+                                               encoding='utf-8')
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
         except PermissionError:
-            pass 
+            pass
 
-    def info(self, msg): self.logger.info(msg)
-    def warning(self, msg): self.logger.warning(msg)
-    def error(self, msg): self.logger.error(msg)
-    def success(self, msg): self.logger.info(f"[SUCCESS] {msg}")
+    def info(self, msg):
+        self.logger.info(msg)
+
+    def warning(self, msg):
+        self.logger.warning(msg)
+
+    def error(self, msg):
+        self.logger.error(msg)
+
+    def success(self, msg):
+        self.logger.info(f"[SUCCESS] {msg}")

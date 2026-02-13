@@ -2,21 +2,19 @@
 import sqlite3
 import csv
 import threading
-import os
 from typing import Optional, List, Tuple, Any
 from datetime import datetime
+
 
 class DatabaseManager:
     """
     Thread-safe SQLite manager for the agent.
-    Implements explicit locking to prevent race conditions during concurrent module execution.
+    Implements explicit locking to prevent race conditions.
     """
+
     def __init__(self, db_name: str = "basilisk.db") -> None:
         self.db_name = db_name
         self.lock = threading.Lock()
-        
-        # 'check_same_thread=False' is needed because connection is shared, 
-        # but self.lock ensures we serialize access manually.
         self.conn = sqlite3.connect(db_name, check_same_thread=False)
         self._configure_pragmas()
         self.create_tables()
@@ -54,12 +52,19 @@ class DatabaseManager:
             except sqlite3.Error as e:
                 print(f"[DB ERROR] Init failed: {e}")
 
-    def update_baseline(self, path: str, file_hash: str, last_modified: float) -> None:
+    def update_baseline(
+            self,
+            path: str,
+            file_hash: str,
+            last_modified: float) -> None:
         with self.lock:
             try:
                 cursor = self.conn.cursor()
                 cursor.execute('''
-                    INSERT OR REPLACE INTO files_baseline (path, file_hash, last_modified)
+                    INSERT OR REPLACE INTO files_baseline (
+                                path,
+                                file_hash,
+                                last_modified)
                     VALUES (?, ?, ?)
                 ''', (path, file_hash, last_modified))
                 self.conn.commit()
@@ -67,8 +72,6 @@ class DatabaseManager:
                 pass
 
     def get_file_baseline(self, path: str) -> Optional[Tuple[str, float]]:
-        # Reads can also be locked to prevent reading while writing in edge cases,
-        # though WAL mode handles this better. We lock for safety.
         with self.lock:
             try:
                 cursor = self.conn.cursor()
@@ -105,7 +108,7 @@ class DatabaseManager:
                 cursor = self.conn.cursor()
                 cursor.execute('SELECT timestamp, type, severity, message FROM events ORDER BY id DESC')
                 rows = cursor.fetchall()
-                
+
                 with open(filename, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerow(["TIMESTAMP", "TYPE", "SEVERITY", "MESSAGE"])
@@ -118,4 +121,5 @@ class DatabaseManager:
         with self.lock:
             try:
                 self.conn.close()
-            except: pass
+            except BaseException:
+                pass

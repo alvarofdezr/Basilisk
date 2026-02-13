@@ -6,12 +6,13 @@ Validated for Mypy strict mode.
 """
 import os
 import hashlib
-from typing import Optional, Set, Tuple
+from typing import Optional, Set
 from basilisk.core.database import DatabaseManager
-from basilisk.utils.logger import Logger 
+from basilisk.utils.logger import Logger
 
 LARGE_FILE_THRESHOLD = 50 * 1024 * 1024  # 50 MB
 SMART_CHUNK_SIZE = 1 * 1024 * 1024       # 1 MB
+
 
 class FileIntegrityMonitor:
     def __init__(self, db_manager: DatabaseManager):
@@ -19,18 +20,23 @@ class FileIntegrityMonitor:
         self.logger = Logger()
 
     def _log(self, level: str, msg: str) -> None:
-        if level == "info": self.logger.info(msg)
-        elif level == "warning": self.logger.warning(msg)
-        elif level == "success": self.logger.success(msg)
-        elif level == "error": self.logger.error(msg)
+        if level == "info":
+            self.logger.info(msg)
+        elif level == "warning":
+            self.logger.warning(msg)
+        elif level == "success":
+            self.logger.success(msg)
+        elif level == "error":
+            self.logger.error(msg)
 
     def calculate_hash(self, file_path: str) -> Optional[str]:
         """Calcula SHA-256 usando Smart Hashing para archivos grandes."""
         sha256_hash = hashlib.sha256()
         try:
-            if not os.path.exists(file_path): return None
+            if not os.path.exists(file_path):
+                return None
             file_size = os.path.getsize(file_path)
-            
+
             with open(file_path, "rb") as f:
                 if file_size < LARGE_FILE_THRESHOLD:
                     for byte_block in iter(lambda: f.read(4096), b""):
@@ -51,7 +57,7 @@ class FileIntegrityMonitor:
         known_files: Set[str] = set()
         try:
             with self.db.lock:
-                cursor = self.db.conn.cursor() # type: ignore
+                cursor = self.db.conn.cursor()  # type: ignore
                 search_path = os.path.normpath(directory)
                 query = "SELECT path FROM files_baseline WHERE path LIKE ? OR path LIKE ?"
                 cursor.execute(query, (f"{search_path}\\%", f"{search_path}/%"))
@@ -71,28 +77,30 @@ class FileIntegrityMonitor:
         for root, _, files in os.walk(directory_path):
             for file in files:
                 full_path = os.path.normpath(os.path.join(root, file))
-                if file.endswith(('.db', '.log', '.tmp', '.pyc', '.git')): continue
+                if file.endswith(('.db', '.log', '.tmp', '.pyc', '.git')):
+                    continue
 
                 found_files_on_disk.add(full_path)
-                
+
                 try:
                     current_mtime = os.path.getmtime(full_path)
                     stored_data = self.db.get_file_baseline(full_path)
-                    
+
                     if stored_data:
                         stored_hash, stored_mtime = stored_data
                         if abs(current_mtime - stored_mtime) < 1.0:
-                            continue 
+                            continue
 
                     current_hash = self.calculate_hash(full_path)
-                    if not current_hash: continue
+                    if not current_hash:
+                        continue
 
                     if mode == "baseline":
                         self.db.update_baseline(full_path, current_hash, current_mtime)
-                    
+
                     elif mode == "monitor":
                         if stored_data:
-                            if current_hash != stored_data[0]: 
+                            if current_hash != stored_data[0]:
                                 msg = f"⚠️ INTEGRIDAD COMPROMETIDA (Modificado): {full_path}"
                                 self._log("warning", msg)
                                 self.db.log_event("FILE_MOD", msg, "CRITICAL")
@@ -102,23 +110,24 @@ class FileIntegrityMonitor:
                             self._log("success", msg)
                             self.db.log_event("FILE_NEW", msg, "WARNING")
                             self.db.update_baseline(full_path, current_hash, current_mtime)
-                            
-                except OSError: pass
+
+                except OSError:
+                    pass
 
         if mode == "monitor":
             known_files = self._get_db_files_in_dir(directory_path)
             deleted_files = known_files - found_files_on_disk
-            
+
             for deleted_path in deleted_files:
                 if not os.path.exists(deleted_path):
                     msg = f"🗑️ ARCHIVO ELIMINADO: {deleted_path}"
                     self._log("warning", msg)
                     self.db.log_event("FILE_DEL", msg, "CRITICAL")
-                    
+
                     with self.db.lock:
-                        cursor = self.db.conn.cursor() # type: ignore
-                        cursor.execute("DELETE FROM files_baseline WHERE path=?", (deleted_path,)) 
-                        self.db.conn.commit() # type: ignore
+                        cursor = self.db.conn.cursor()  # type: ignore
+                        cursor.execute("DELETE FROM files_baseline WHERE path=?", (deleted_path,))
+                        self.db.conn.commit()  # type: ignore
 
         if mode == "baseline":
             self._log("info", "Baseline completada.")

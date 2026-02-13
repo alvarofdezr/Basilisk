@@ -47,8 +47,10 @@ logger = Logger()
 
 print("[+] Starting Basilisk Agent Core v6.8...")
 
+
 class C2Client:
     """Handles secure HTTP/HTTPS communication with the C2 server."""
+
     def __init__(self, config: Config):
         self.session = requests.Session()
         self.session.verify = False
@@ -116,13 +118,14 @@ class BasiliskAgent:
     """
     Central orchestration engine with Dispatcher Pattern.
     """
+
     def __init__(self):
         logger.info("🛡️ Initializing Basilisk Agent v6.8 (Dispatcher Mode)...")
         self.running = False
         self.config = Config()
         self.db = DatabaseManager(db_name=self.config.db_name)
         self.c2 = C2Client(self.config)
-        
+
         # --- MODULE INITIALIZATION ---
         self.modules = {
             'yara': YaraScanner(),
@@ -190,9 +193,9 @@ class BasiliskAgent:
 
     def _cmd_isolate_host(self, _: str) -> None:
         if self.modules['isolator'].isolate_host():
-                self.c2.send_alert(
-                    "HOST ISOLATED via Firewall.", "CRITICAL", "NET_DEFENSE"
-                )
+            self.c2.send_alert(
+                "HOST ISOLATED via Firewall.", "CRITICAL", "NET_DEFENSE"
+            )
 
     def _cmd_unisolate_host(self, _: str) -> None:
         if self.modules['isolator'].restore_connection():
@@ -245,6 +248,7 @@ class BasiliskAgent:
         if self.modules['ransom']:
             self.modules['ransom'].start()
         # Helper for starting threads
+
         def run_thread(target, name):
             t = threading.Thread(target=target, name=name, daemon=True)
             t.start()
@@ -281,11 +285,11 @@ class BasiliskAgent:
             try:
                 for p in self.modules['proc_mon'].scan_processes():
                     if p.get('risk') == 'CRITICAL':
-                            self.c2.send_alert(
-                                f"Critical Process: {p['name']}",
-                                "CRITICAL",
-                                "PROCESS_ALERT"
-                            )
+                        self.c2.send_alert(
+                            f"Critical Process: {p['name']}",
+                            "CRITICAL",
+                            "PROCESS_ALERT"
+                        )
                 time.sleep(20)
             except Exception:
                 time.sleep(5)
