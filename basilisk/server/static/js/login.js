@@ -1,11 +1,14 @@
-// --- CONFIGURACIÓN ---
+/**
+ * Basilisk Login Interface
+ * Handles authentication, rate limiting, and animated background.
+ */
+
 const LOGIN_ENDPOINT = "/api/v1/auth/login";
 
 if (window.location.hostname === '127.0.0.1') {
     window.location.href = window.location.href.replace('127.0.0.1', 'localhost');
 }
 
-// --- LÓGICA DE LOGIN ---
 async function doLogin() {
     const u = document.getElementById('username').value;
     const p = document.getElementById('password').value;
@@ -65,7 +68,6 @@ document.getElementById('password').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') doLogin();
 });
 
-// --- ANIMACIÓN DE FONDO (CANVAS NETWORK) ---
 const canvas = document.getElementById('networkCanvas');
 const ctx = canvas.getContext('2d');
 let particles = [];
@@ -85,12 +87,14 @@ class Particle {
         this.vy = (Math.random() - 0.5) * 0.5;
         this.size = Math.random() * 2;
     }
+    
     update() {
         this.x += this.vx;
         this.y += this.vy;
         if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
         if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
     }
+    
     draw() {
         ctx.fillStyle = 'rgba(16, 185, 129, 0.5)'; 
         ctx.beginPath();
@@ -102,7 +106,9 @@ class Particle {
 function initParticles() {
     particles = [];
     const count = Math.min(window.innerWidth / 10, 100); 
-    for (let i = 0; i < count; i++) particles.push(new Particle());
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle());
+    }
 }
 
 function animate() {

@@ -1,3 +1,5 @@
+/* Basilisk Login Interface v7.1 */
+
 :root {
     --primary: #10b981;
     --primary-dim: rgba(16, 185, 129, 0.2);
@@ -7,7 +9,11 @@
     --text-muted: #64748b;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
 body {
     background-color: var(--bg-dark);
@@ -20,23 +26,26 @@ body {
     position: relative;
 }
 
-/* Fondo Animado */
 canvas {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     z-index: 0;
 }
+
 .overlay {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: radial-gradient(circle at center, transparent 0%, #020617 90%);
     z-index: 1;
     pointer-events: none;
 }
 
-/* Tarjeta Principal */
 .login-container {
     position: relative;
     z-index: 10;
@@ -52,12 +61,20 @@ canvas {
 }
 
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-/* Header */
-.login-header { text-align: center; margin-bottom: 35px; }
+.login-header {
+    text-align: center;
+    margin-bottom: 35px;
+}
 
 .logo-glow {
     color: var(--primary);
@@ -90,7 +107,6 @@ h1 {
     font-weight: 600;
 }
 
-/* Inputs */
 .input-group {
     position: relative;
     margin-bottom: 20px;
@@ -124,10 +140,14 @@ input:focus {
     box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
 }
 
-input:focus + .input-border { width: 100%; }
-input:focus ~ .input-icon { color: var(--primary); }
+input:focus + .input-border {
+    width: 100%;
+}
 
-/* Botón */
+input:focus ~ .input-icon {
+    color: var(--primary);
+}
+
 button {
     width: 100%;
     padding: 14px;
@@ -152,10 +172,15 @@ button:hover {
     box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.4);
 }
 
-button:active { transform: translateY(0); }
-button:disabled { opacity: 0.7; cursor: not-allowed; }
+button:active {
+    transform: translateY(0);
+}
 
-/* Footer */
+button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
 .login-footer {
     margin-top: 30px;
     text-align: center;
@@ -178,9 +203,15 @@ button:disabled { opacity: 0.7; cursor: not-allowed; }
     letter-spacing: 0.5px;
 }
 
-.text-danger { color: #ef4444 !important; }
+.text-danger {
+    color: #ef4444 !important;
+}
 
 @keyframes pulse {
-    0%, 100% { text-shadow: 0 0 20px var(--primary-dim); }
-    50% { text-shadow: 0 0 40px rgba(16, 185, 129, 0.5); }
+    0%, 100% {
+        text-shadow: 0 0 20px var(--primary-dim);
+    }
+    50% {
+        text-shadow: 0 0 40px rgba(16, 185, 129, 0.5);
+    }
 }
