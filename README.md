@@ -68,7 +68,7 @@
 ### Quick Setup
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/basilisk.git
+   git clone https://github.com/alvarofdezr/basilisk.git
    cd basilisk
    ```
 

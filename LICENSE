@@ -1,0 +1,93 @@
+MIT License
+
+Copyright (c) 2025 Álvaro Fernández Ramos
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+EDUCATIONAL USE DISCLAIMER
+
+This software is provided for educational and research purposes only. 
+
+THE AUTHOR(S) OF THIS SOFTWARE EXPLICITLY DISCLAIM ANY RESPONSIBILITY FOR:
+
+1. Unauthorized use on systems without proper authorization
+2. Any illegal activities conducted using this software
+3. Any damages, direct or indirect, resulting from the use of this software
+4. Misuse or abuse of the capabilities provided by this software
+
+IMPORTANT NOTICES:
+
+- This software should ONLY be used in authorized environments
+- Users are responsible for compliance with all applicable laws and regulations
+- Unauthorized access to computer systems is illegal in most jurisdictions
+- This software is intended for defensive security research and education
+- Always obtain explicit written permission before testing on any system
+- The author(s) assume no liability for misuse of this software
+
+BY USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT:
+
+- You have read and understood this disclaimer
+- You will use this software responsibly and legally
+- You accept full responsibility for your actions
+- You will not hold the author(s) liable for any consequences
+
+If you do not agree to these terms, you must not use this software.
+
+---
+
+THIRD-PARTY LICENSES
+
+This software uses the following open-source libraries and frameworks:
+
+- FastAPI: MIT License
+- Uvicorn: BSD License
+- SQLAlchemy: MIT License
+- Pydantic: MIT License
+- Python-Multipart: Apache License 2.0
+- Argon2-cffi: MIT License
+- Cryptography: Apache License 2.0 / BSD License
+- psutil: BSD License
+- Watchdog: Apache License 2.0
+- yara-python: Apache License 2.0
+- requests: Apache License 2.0
+- PyYAML: MIT License
+- python-dotenv: BSD License
+- fpdf2: LGPL License
+- Bootstrap: MIT License
+- Font Awesome: Font Awesome Free License
+- jQuery: MIT License
+- Chart.js: MIT License
+- SweetAlert2: MIT License
+
+For full license texts of these dependencies, please refer to their respective
+repositories and documentation.
+
+---
+
+EXPORT COMPLIANCE
+
+This software may be subject to export control regulations. It is your 
+responsibility to comply with all applicable export control laws and 
+regulations when using, distributing, or modifying this software.
+
+---
+
+For questions about licensing, contact: alvarofdezr@outlook.es
