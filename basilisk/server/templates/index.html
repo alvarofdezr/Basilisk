@@ -12,6 +12,24 @@
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 
     <link rel="stylesheet" href="/static/css/dashboard.css">
+    
+    <script>
+        console.log("[BASILISK] ========== DASHBOARD LOADING ==========");
+        console.log("[BASILISK] Time: " + new Date().toLocaleTimeString());
+        console.log("[BASILISK] URL: " + window.location.href);
+        
+        window.basiliskLogs = ["[BASILISK] Page started loading"];
+        
+        const originalConsoleLog = console.log;
+        console.log = function() {
+            originalConsoleLog.apply(console, arguments);
+            const msg = Array.from(arguments).join(" ");
+            if (msg.includes("[BASILISK]") || msg.includes("[")) {
+                window.basiliskLogs.push(msg);
+            }
+        };
+    </script>
+    
     <script src="/static/js/dashboard.js"></script>
 </head>
 <body>

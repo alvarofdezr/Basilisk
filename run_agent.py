@@ -1,7 +1,10 @@
+"""
+Basilisk Agent Entry Point
+Initializes and starts the endpoint agent with graceful shutdown.
+"""
 import sys
 import os
 
-# Asegura que Python encuentre el paquete 'basilisk'
 sys.path.insert(0, os.getcwd())
 
 from basilisk.agent.engine import BasiliskAgent

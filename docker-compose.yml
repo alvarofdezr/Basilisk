@@ -11,12 +11,10 @@ services:
     ports:
       - "8443:8443"
     environment:
-      # Forzamos al servidor a escuchar en todas las interfaces dentro de Docker
       - BASILISK_C2_URL=https://0.0.0.0:8443
     env_file:
       - .env
     volumes:
-      # Persistencia de datos (BBDD, Logs, Certificados)
       - ./basilisk.db:/app/basilisk.db
       - ./server_logs.txt:/app/server_logs.txt
       - ./certs:/app/certs
@@ -25,10 +23,8 @@ services:
       - basilisk_net
 
   # -------------------------------
-  # AGENTE DE PRUEBA (Opcional)
+  # AGENTE DE PRUEBA 
   # -------------------------------
-  # Úsalo para probar el Mapa de Red si no tienes otro PC a mano.
-  # Nota: Al correr en Docker, su visibilidad del sistema es limitada.
   agent-sim:
     build: .
     container_name: basilisk_agent_sim
@@ -36,9 +32,7 @@ services:
     depends_on:
       - c2-server
     environment:
-      # El agente debe apuntar al nombre del servicio del C2, no a localhost
       - BASILISK_C2_URL=https://c2-server:8443
-      # Ignorar validación SSL para facilitar la comunicación interna Docker-Docker
       - PYTHONWARNINGS=ignore:Unverified HTTPS request
     env_file:
       - .env

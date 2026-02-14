@@ -1,6 +1,9 @@
 """
-Basilisk Process Monitor v2.0
-Real-time process telemetry with anomaly detection.
+Process Monitor Module - Real-time Process Telemetry
+
+Enumerates system processes with anomaly detection capabilities.
+Identifies suspicious execution contexts, unwanted child processes,
+and potential privilege escalation attempts through process analysis.
 """
 import psutil
 import os
@@ -12,19 +15,41 @@ logger = Logger()
 
 
 class ProcessMonitor:
+    """
+    System process enumeration and threat analysis engine.
+    
+    Continuously monitors running processes and evaluates risk based on
+    execution path, process name, and system integration patterns.
+    Detects anomalies including execution from temporary directories,
+    process injection vectors, and critical system process hijacking.
+    """
+
     def __init__(self):
+        """
+        Initialize process monitor with threat detection baselines.
+        
+        Configures suspicious execution paths and critical process
+        naming patterns used for risk assessment.
+        """
         self.suspicious_paths = [
             os.getenv("TEMP", "").lower(),
             os.getenv("APPDATA", "").lower(),
-            "/tmp",  # nosec
-            "/var/tmp"  # nosec
+            "/tmp",
+            "/var/tmp"
         ]
         self.critical_processes = ["lsass.exe", "svchost.exe", "csrss.exe", "winlogon.exe"]
 
     def scan_processes(self) -> List[dict]:
         """
-        Retrieves the process list and returns serialized data ready for C2.
-        Returns: List[dict] (Output of ProcessModel.dict())
+        Enumerate all running processes with risk assessment.
+        
+        Iterates system process list and assigns threat scores based on:
+        - Execution path (temporary directories = suspicious)
+        - Process name (critical OS processes monitored)
+        - Resource consumption patterns
+        
+        Returns:
+            List[dict]: Sorted process list (highest CPU first) with risk metadata
         """
         process_list = []
 

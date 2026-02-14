@@ -1,9 +1,28 @@
 
 # agent/agent_core.py
 """
-Basilisk EDR - Agent Core v7.1.0 (Refactored & Modular)
-Enterprise-grade endpoint agent with Command Dispatcher architecture.
-Author: Álvaro Fernández Ramos
+Basilisk EDR Agent - Enterprise Endpoint Defense Platform
+
+Core orchestration engine implementing Command Dispatcher pattern for
+server-directed threat response. Three-tier architecture:
+
+1. C2 Communication: Asynchronous heartbeat + command polling
+2. Module Dispatcher: Maps commands to threat-specific handlers
+3. Worker Threads: Background continuous monitoring (processes, FIM, network)
+
+Heartbeat Cycle (3 seconds):
+- Send telemetry (CPU, RAM, hostname, OS)
+- Receive command batch from server
+- Submit commands to thread pool for async execution
+- Process results and upload reports
+
+Supported Commands:
+- KILL: Terminate process by PID
+- REPORT_*: Enumerate and upload (processes, ports, network, audit)
+- SCAN_YARA: Malware signature scanning
+- ISOLATE_HOST: Firewall-based network containment
+- RUN_AUDIT: Windows compliance verification
+- CREATE_BASELINE: Initialize filesystem baseline
 """
 
 import sys
@@ -16,7 +35,6 @@ import threading
 from typing import Dict, Any, Callable
 from concurrent.futures import ThreadPoolExecutor
 
-# Internal Imports (Legacy path support)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PACKAGE_ROOT = os.path.dirname(CURRENT_DIR)
 PROJECT_ROOT = os.path.dirname(PACKAGE_ROOT)
@@ -40,7 +58,6 @@ from basilisk.utils.system_monitor import get_system_metrics
 from basilisk.utils.logger import Logger
 
 
-# Global Settings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 HOSTNAME = platform.node()
 logger = Logger()
@@ -49,9 +66,23 @@ print("[+] Starting Basilisk Agent Core v7.1.0...")
 
 
 class C2Client:
-    """Handles secure HTTP/HTTPS communication with the C2 server."""
+    """HTTPS client for secure C2 server communication.
+    
+    Implements three-endpoint protocol:
+    - POST /api/v1/heartbeat: Send telemetry, receive commands
+    - POST /api/v1/alert: Fire-and-forget security events
+    - POST /api/v1/report/{type}: Upload large enumeration results
+    
+    Disables SSL verification for lab environments with self-signed certs.
+    Implements 5-second timeout for network-resilient agent operation.
+    """
 
     def __init__(self, config: Config):
+        """Initialize C2 client with server connection parameters.
+        
+        Args:
+            config: Config instance with c2_url and api endpoint
+        """
         self.session = requests.Session()
         self.session.verify = False
         self.agent_id = f"AGENT_{HOSTNAME}"
@@ -59,7 +90,17 @@ class C2Client:
         self.timeout = 5
 
     def send_heartbeat(self, status: str) -> Dict[str, Any]:
-        """Sends periodic telemetry and retrieves commands."""
+        """Send periodic telemetry and receive command batch.
+        
+        Heartbeat payload includes system metrics (CPU, RAM) and agent
+        metadata (ID, hostname, OS). Server responds with command array.
+        
+        Args:
+            status: Agent status string (e.g., "ONLINE")
+            
+        Returns:
+            Dict: Server response with "commands" array or empty dict on failure
+        """
         metrics = get_system_metrics()
         try:
             payload = {
@@ -81,7 +122,18 @@ class C2Client:
             return {}
 
     def send_alert(self, msg: str, severity: str = "WARNING", alert_type: str = "GENERAL") -> None:
-        """Transmits security alerts (Fire & Forget)."""
+        """Transmit security alert to C2 (fire-and-forget pattern).
+        
+        Asynchronously sends event without blocking. Used for:
+        - Malware detections (YARA, threat intel, ransomware)
+        - Process anomalies (unauthorized process execution)
+        - Network anomalies (suspicious connections)
+        
+        Args:
+            msg: Human-readable alert message
+            severity: Level (INFO, WARNING, CRITICAL, ERROR)
+            alert_type: Category (PROCESS_ALERT, RANSOMWARE, NET_ANOMALY, etc.)
+        """
         try:
             logger.info(f"📤 Alert: {msg}")
             payload = {
@@ -99,7 +151,15 @@ class C2Client:
             pass
 
     def upload_report(self, dtype: str, content: Any) -> None:
-        """Uploads large datasets (reports)."""
+        """Upload enumeration report (processes, ports, network, audit).
+        
+        Large dataset endpoint for REPORT_* commands. Logs item count.
+        Timeouts set to 15 seconds for large dataset uploads.
+        
+        Args:
+            dtype: Report type (processes, ports, network_map, audit)
+            content: List of dictionaries containing enumeration results
+        """
         try:
             logger.info(f"📤 Uploading report: {dtype} ({len(content)} items)")
             self.session.post(
@@ -115,18 +175,39 @@ class C2Client:
 
 
 class BasiliskAgent:
-    """
-    Central orchestration engine with Dispatcher Pattern.
+    """Agent orchestration engine with Command Dispatcher architecture.
+    
+    Lifecycle:
+    1. __init__: Load config, initialize all modules, map commands
+    2. start(): Spawn background workers, enter heartbeat loop
+    3. Main loop: Poll C2, dispatch commands to thread pool
+    4. Workers: Continuous monitoring for anomalies
+    
+    Threading Model:
+    - Main thread: Heartbeat loop + USB polling
+    - Command thread pool (3 workers): Async command execution
+    - Background workers (3 threads): Process, FIM, Network monitoring
+    - Ransomware CanarySentry: Event-driven thread
+    
+    Resilience:
+    - Network timeouts don't crash agent (try/except at heartbeat)
+    - Failed commands logged but don't block heartbeat
+    - Thread pool rejects handled gracefully
     """
 
     def __init__(self):
+        """Initialize agent: Load config, setup modules, map commands.
+        
+        Creates DatabaseManager for baseline storage, initializes all
+        threat detection modules (YARA, audit, process monitor, etc.),
+        and populates command dispatcher map.
+        """
         logger.info("🛡️ Initializing Basilisk Agent v7.1.0 (Dispatcher Mode)...")
         self.running = False
         self.config = Config()
         self.db = DatabaseManager(db_name=self.config.db_name)
         self.c2 = C2Client(self.config)
 
-        # --- MODULE INITIALIZATION ---
         self.modules = {
             'yara': YaraScanner(),
             'audit': AuditScanner(),
@@ -140,8 +221,6 @@ class BasiliskAgent:
             'ransom': CanarySentry(on_detection_callback=self._handle_ransomware_alert)
         }
 
-        # --- COMMAND DISPATCHER MAP ---
-        # Maps command strings to method references for O(1) execution
         self.COMMAND_HANDLERS: Dict[str, Callable[[str], None]] = {
             'KILL': self._cmd_kill_process,
             'SCAN_YARA': self._cmd_yara_scan,
@@ -156,13 +235,24 @@ class BasiliskAgent:
 
         self.command_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="CmdWorker")
 
-    # --- CALLBACKS & HANDLERS ---
     def _handle_ransomware_alert(self, msg: str) -> None:
+        """Callback from CanarySentry when canary file modification detected.
+        
+        Args:
+            msg: Alert message describing canary file activity
+        """
         logger.error(f"⚠️ RANSOMWARE DETECTED: {msg}")
         self.c2.send_alert(msg, "CRITICAL", "RANSOMWARE")
 
-    # --- COMMAND IMPLEMENTATIONS (Clean & Isolated) ---
     def _cmd_kill_process(self, arg: str) -> None:
+        """Handler for KILL command: Terminate process by PID.
+        
+        Parses PID argument and calls active_response module.
+        Sends result alert to C2.
+        
+        Args:
+            arg: Process ID as string (e.g., "1234")
+        """
         try:
             pid = int(arg)
             if kill_process_by_pid(pid):
@@ -177,6 +267,11 @@ class BasiliskAgent:
             logger.error(f"Invalid PID: {arg}")
 
     def _cmd_yara_scan(self, path: str) -> None:
+        """Handler for SCAN_YARA: Execute YARA malware scans.
+        
+        Args:
+            path: Target path (file or directory) to scan
+        """
         matches = self.modules['yara'].scan_file(path)
         if matches:
             self.c2.send_alert(
@@ -184,44 +279,84 @@ class BasiliskAgent:
             )
 
     def _cmd_report_processes(self, _: str) -> None:
+        """Handler for REPORT_PROCESSES: Enumerate and upload process list.
+        
+        Scans all running processes with risk scoring, uploads array.
+        """
+        logger.info("🔍 [PROCESSES] Starting scan...")
         data = self.modules['proc_mon'].scan_processes()
+        logger.info(f"🔍 [PROCESSES] Found {len(data)} processes, uploading...")
         self.c2.upload_report("processes", data)
+        logger.success(f"✅ [PROCESSES] Uploaded {len(data)} items")
 
     def _cmd_report_ports(self, _: str) -> None:
+        """Handler for REPORT_PORTS: Enumerate and upload listening services.
+        
+        Scans all open ports with service enumeration and risk assessment.
+        """
+        logger.info("🔌 [PORTS] Starting scan...")
         data = self.modules['port_mon'].get_full_report()
+        logger.info(f"🔌 [PORTS] Found {len(data)} ports, uploading...")
         self.c2.upload_report("ports", data)
+        logger.success(f"✅ [PORTS] Uploaded {len(data)} items")
 
     def _cmd_isolate_host(self, _: str) -> None:
+        """Handler for ISOLATE_HOST: Apply firewall-based network containment.
+        
+        Implements emergency isolation blocking all traffic except C2.
+        """
         if self.modules['isolator'].isolate_host():
             self.c2.send_alert(
                 "HOST ISOLATED via Firewall.", "CRITICAL", "NET_DEFENSE"
             )
 
     def _cmd_unisolate_host(self, _: str) -> None:
+        """Handler for UNISOLATE_HOST: Restore normal network connectivity.
+        
+        Removes all Basilisk isolation firewall rules.
+        """
         if self.modules['isolator'].restore_connection():
             self.c2.send_alert("Connectivity restored.", "INFO", "NET_ALLOW")
 
     def _cmd_run_audit(self, _: str) -> None:
+        """Handler for RUN_AUDIT: Windows compliance verification.
+        
+        Checks firewall, UAC, Windows Defender, updates status.
+        """
+        logger.info("📋 [AUDIT] Starting audit scan...")
         report = self.modules['audit'].perform_audit()
+        logger.info(f"📋 [AUDIT] Completed, uploading...")
         self.c2.upload_report("audit", report)
         self.c2.send_alert(
             "Compliance Audit uploaded.", "INFO", "SECURITY_AUDIT"
         )
+        logger.success("✅ [AUDIT] Uploaded")
 
     def _cmd_report_network(self, _: str) -> None:
+        """Handler for REPORT_NETWORK_MAP: Upload active connections.
+        
+        Enumerates ESTABLISHED TCP/UDP connections with process mapping.
+        """
         data = self.modules['net_mon'].get_network_snapshot()
         self.c2.upload_report("network_map", data)
 
     def _cmd_create_baseline(self, _: str) -> None:
+        """Handler for CREATE_BASELINE: Initialize FIM baseline.
+        
+        Hashes first configured directory and stores baseline in database.
+        """
         target = self.config.directories[0] if self.config.directories else "."
         self.modules['fim'].scan_directory(target, mode="baseline")
         self.c2.send_alert("FIM Baseline updated.", "INFO", "SECURITY_AUDIT")
 
-    # --- CORE LOGIC ---
     def _process_command_payload(self, raw_cmd: str) -> None:
-        """
-        Parses command string and routes to the correct handler.
+        """Parse and execute single command string.
+        
         Format: "ACTION" or "ACTION:ARGUMENT"
+        Supports legacy single-command and new array-based formats.
+        
+        Args:
+            raw_cmd: Raw command string from server (e.g., "KILL:1234")
         """
         try:
             logger.info(f"⚡ Received Task: {raw_cmd}")
@@ -231,47 +366,75 @@ class BasiliskAgent:
                 action, arg = raw_cmd.split(":", 1)
                 action = action.strip()
                 arg = arg.strip()
+            
+            logger.info(f"🎯 [ACTION] Looking for handler for: {action}")
             handler = self.COMMAND_HANDLERS.get(action)
+            
             if handler:
+                logger.info(f"📍 [ACTION] Found handler, executing...")
                 handler(arg)
-                logger.success(f"Task completed: {action}")
+                logger.success(f"✅ Task completed: {action}")
             else:
-                logger.warning(f"Unknown command received: {action}")
+                logger.warning(f"❌ Unknown command received: {action}")
+                logger.warning(f"Available commands: {list(self.COMMAND_HANDLERS.keys())}")
         except Exception as e:
             logger.error(f"Execution failed ({raw_cmd}): {e}")
             self.c2.send_alert(f"Agent Execution Error: {e}", "ERROR", "DEBUG")
 
-    # --- MAIN LOOP & WORKERS ---
     def start(self) -> None:
+        """Start agent: Spawn workers, enter main heartbeat loop.
+        
+        Lifecycle:
+        1. Start ransomware canary monitor
+        2. Spawn 3 background worker threads
+        3. Enter infinite heartbeat loop (3-second cycle)
+        4. On exit, graceful shutdown of all threads
+        """
         self.running = True
-        # Start Background Services
         if self.modules['ransom']:
             self.modules['ransom'].start()
-        # Helper for starting threads
 
         def run_thread(target, name):
             t = threading.Thread(target=target, name=name, daemon=True)
             t.start()
             return t
+        
         run_thread(self._worker_process, "T-Proc")
         run_thread(self._worker_fim, "T-FIM")
         run_thread(self._worker_net, "T-Net")
         logger.success(f"🚀 Agent Online. ID: {self.c2.agent_id}")
-        # Main Heartbeat Loop
+        
         try:
             while self.running:
                 if self.modules['usb_mon']:
                     self.modules['usb_mon'].check_usb_changes()
+                
+                logger.info(f"💓 Heartbeat #{int(time.time() % 10000)} -> Server")
                 resp = self.c2.send_heartbeat("ONLINE")
-                cmd = resp.get("command")
-                if cmd:
-                    # Offload command execution to thread pool to keep heartbeat steady
+                
+                commands = resp.get("commands", [])
+                if commands and isinstance(commands, list):
+                    logger.info(f"⚡ Received {len(commands)} commands: {commands}")
+                    for cmd in commands:
+                        if cmd:
+                            logger.info(f"▶️ Processing: {cmd}")
+                            self.command_executor.submit(self._process_command_payload, str(cmd))
+                
+                elif resp.get("command"):
+                    cmd = resp.get("command")
+                    logger.info(f"▶️ Processing: {cmd}")
                     self.command_executor.submit(self._process_command_payload, str(cmd))
+                
                 time.sleep(3)
         except KeyboardInterrupt:
             self.stop()
 
-    def stop(self):
+    def stop(self) -> None:
+        """Graceful shutdown: Cleanup threads and exit.
+        
+        Stops ransomware monitor, shuts down command thread pool,
+        and exits process cleanly.
+        """
         logger.info("Stopping agent...")
         self.running = False
         self.command_executor.shutdown(wait=False)
@@ -279,8 +442,12 @@ class BasiliskAgent:
             self.modules['ransom'].stop()
         sys.exit(0)
 
-    # --- WORKER WRAPPERS ---
-    def _worker_process(self):
+    def _worker_process(self) -> None:
+        """Background worker: Continuous process monitoring.
+        
+        Scans all processes every 20 seconds, alerts on critical processes.
+        Runs in separate thread to avoid blocking heartbeat.
+        """
         while self.running:
             try:
                 for p in self.modules['proc_mon'].scan_processes():
@@ -294,7 +461,12 @@ class BasiliskAgent:
             except Exception:
                 time.sleep(5)
 
-    def _worker_fim(self):
+    def _worker_fim(self) -> None:
+        """Background worker: Continuous file integrity monitoring.
+        
+        Scans all monitored directories every 30 seconds for file changes.
+        Runs in separate thread to avoid blocking heartbeat.
+        """
         while self.running:
             try:
                 for f in self.config.directories:
@@ -304,7 +476,12 @@ class BasiliskAgent:
             except Exception:
                 time.sleep(10)
 
-    def _worker_net(self):
+    def _worker_net(self) -> None:
+        """Background worker: Continuous network monitoring.
+        
+        Scans active connections every 5 seconds for suspicious anomalies.
+        Runs in separate thread to avoid blocking heartbeat.
+        """
         while self.running:
             try:
                 self.modules['net_mon'].scan_connections()

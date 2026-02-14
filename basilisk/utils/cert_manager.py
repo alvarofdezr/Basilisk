@@ -1,4 +1,7 @@
-# basilisk/utils/cert_manager.py
+"""
+Basilisk PKI Infrastructure Manager
+Automated X.509 certificate generation and validation.
+"""
 import os
 import datetime
 from cryptography import x509
@@ -39,13 +42,12 @@ class CertManager:
         return self.cert_path, self.key_path
 
     def _generate_self_signed_cert(self):
-        # 1. Generate Private Key
+        """Generate 4096-bit RSA self-signed certificate valid for 5 years."""
         key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=4096,
         )
 
-        # 2. Generate Certificate
         subject = issuer = x509.Name([
             x509.NameAttribute(NameOID.COUNTRY_NAME, u"ES"),
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"Seville"),
@@ -65,14 +67,12 @@ class CertManager:
         ).not_valid_before(
             datetime.datetime.utcnow()
         ).not_valid_after(
-            # Valid for 5 years
             datetime.datetime.utcnow() + datetime.timedelta(days=365 * 5)
         ).add_extension(
             x509.SubjectAlternativeName([x509.DNSName(u"localhost")]),
             critical=False,
         ).sign(key, hashes.SHA256())
 
-        # 3. Save to Disk
         with open(self.key_path, "wb") as f:
             f.write(key.private_bytes(
                 encoding=serialization.Encoding.PEM,

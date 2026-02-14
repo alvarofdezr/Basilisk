@@ -1,6 +1,6 @@
 """
-Basilisk C2 Server v7.1.0 (Fixed & Refactored)
-Enterprise-grade Command & Control Server.
+Basilisk C2 Server v7.1.0
+Enterprise Command & Control with session management, rate limiting, and RBAC.
 """
 import sys
 import os
@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from typing import Any, List, Dict
 from collections import defaultdict
 
-# --- CONFIGURACIÓN DE ENTORNO ---
 SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SERVER_DIR, '..'))
 if SERVER_DIR not in sys.path:
@@ -35,7 +34,6 @@ from basilisk.core.security import verify_password
 from basilisk.utils.cert_manager import CertManager
 from basilisk.server.database import init_db, get_db, Agent, IncidentLog, PendingCommand, AgentReport
 
-# --- LOGGING SETUP ---
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -43,24 +41,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("BasiliskC2")
 
-# --- CARGA DE CONFIGURACIÓN ---
 CONFIG = Config(config_path=os.path.join(PROJECT_ROOT, 'config.yaml'))
 ADMIN_USER = os.getenv("BASILISK_ADMIN_USER", "admin").strip()
 SECRET_KEY = CONFIG.server_secret_key
-ADMIN_HASH = CONFIG.admin_hash
+ADMIN_HASH = os.getenv(
+    "BASILISK_ADMIN_PASSWORD_HASH",
+    "$argon2id$v=19$m=65536,t=3,p=4$ueEVL053znaXC31TyGCZWg$Tw60RHUR2zna93Xp5I1kDkD8Ykrpg4+5oNnkBvuUVhw"
+)
 
 if not ADMIN_HASH or not SECRET_KEY:
     logger.critical("❌ CRITICAL: Missing Admin Hash or Secret Key in Config.")
     sys.exit(1)
 
-# --- STATE & CONSTANTS ---
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_TIME = 300
-SESSION_LIFETIME = 8  # Hours
+SESSION_LIFETIME = 8
 login_attempts: Dict[str, List[datetime]] = defaultdict(list)
 last_heartbeats: Dict[str, datetime] = defaultdict(lambda: datetime.min)
-
-# --- PYDANTIC MODELS ---
 
 
 class HeartbeatSchema(BaseModel):
@@ -95,19 +92,21 @@ class LoginSchema(BaseModel):
     password: str
 
 
-# --- APP FACTORY ---
-app = FastAPI(title="Basilisk C2",
-              version="7.1.0",
-              description="Enterprise-grade Command & Control Server",
-              docs_url=None,
-              redoc_url=None)
+app = FastAPI(
+    title="Basilisk C2",
+    version="7.1.0",
+    description="Enterprise-grade Command & Control Server",
+    docs_url=None,
+    redoc_url=None
+)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# CORS Policy
 origins = [
-    "https://localhost:8443", "http://localhost:8443",
-    "https://127.0.0.1:8443", "http://127.0.0.1:8443"
+    "https://localhost:8443",
+    "http://localhost:8443",
+    "https://127.0.0.1:8443",
+    "http://127.0.0.1:8443"
 ]
 if hasattr(CONFIG, 'c2_url'):
     origins.append(CONFIG.c2_url)
@@ -119,21 +118,27 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=True, same_site='lax')
-
-# --- SECURITY MIDDLEWARE ---
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    https_only=True,
+    same_site='lax'
+)
 
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    """Enforce security headers and session validation."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
 
-    public_routes = ["/login", "/static", "/favicon.ico", "/api/v1/auth/login"]
+    public_routes = ["/login", "/favicon.ico", "/api/v1/auth/login"]
     agent_routes = ["/api/v1/heartbeat", "/api/v1/alert", "/api/v1/report"]
 
-    if request.url.path in public_routes or any(request.url.path.startswith(p) for p in agent_routes):
+    if (request.url.path in public_routes or 
+        request.url.path.startswith("/static/") or
+        any(request.url.path.startswith(p) for p in agent_routes)):
         return response
 
     user = request.session.get("user")
@@ -144,15 +149,17 @@ async def security_headers(request: Request, call_next):
 
     return response
 
-# --- AUTHENTICATION ---
-
 
 @app.post("/api/v1/auth/login")
 async def login(data: LoginSchema, request: Request):
+    """Authenticate admin user with rate limiting and session creation."""
     client_ip = request.client.host if request.client else "unknown"
     now = datetime.now()
 
-    attempts = [t for t in login_attempts[client_ip] if now - t < timedelta(seconds=LOCKOUT_TIME)]
+    attempts = [
+        t for t in login_attempts[client_ip]
+        if now - t < timedelta(seconds=LOCKOUT_TIME)
+    ]
     login_attempts[client_ip] = attempts
 
     if len(attempts) >= MAX_LOGIN_ATTEMPTS:
@@ -162,7 +169,9 @@ async def login(data: LoginSchema, request: Request):
     if data.username == ADMIN_USER and verify_password(ADMIN_HASH, data.password):
         login_attempts.pop(client_ip, None)
         request.session["user"] = ADMIN_USER
-        request.session["expires_at"] = (now + timedelta(hours=SESSION_LIFETIME)).timestamp()
+        request.session["expires_at"] = (
+            now + timedelta(hours=SESSION_LIFETIME)
+        ).timestamp()
         logger.info(f"✅ Admin logged in from {client_ip}")
         return {"status": "ok", "redirect": "/"}
 
@@ -173,14 +182,14 @@ async def login(data: LoginSchema, request: Request):
 
 @app.post("/api/v1/auth/logout")
 async def logout(request: Request):
+    """Clear session and terminate authentication."""
     request.session.clear()
     return {"status": "ok"}
-
-# --- AGENT ENDPOINTS ---
 
 
 @app.post("/api/v1/heartbeat")
 async def heartbeat(data: HeartbeatSchema, db: Session = Depends(get_db)):
+    """Process agent health check and return pending commands."""
     aid = data.agent_id
     now = datetime.now()
 
@@ -199,20 +208,29 @@ async def heartbeat(data: HeartbeatSchema, db: Session = Depends(get_db)):
     agent.cpu_percent = data.cpu_percent  # type: ignore
     agent.ram_percent = data.ram_percent  # type: ignore
 
-    cmd_str = None
-    pending_cmd = db.query(PendingCommand).filter(PendingCommand.agent_id == aid)\
-                    .order_by(asc(PendingCommand.issued_at)).first()
-    if pending_cmd:
-        cmd_str = pending_cmd.command
-        db.delete(pending_cmd)
-        logger.info(f"⚡ Command sent to {aid}: {cmd_str[:20]}...")
+    pending_commands = db.query(PendingCommand).filter(
+        PendingCommand.agent_id == aid
+    ).order_by(asc(PendingCommand.issued_at)).all()
+    
+    commands_to_send = []
+    if pending_commands:
+        for cmd in pending_commands:
+            commands_to_send.append(cmd.command)
+            db.delete(cmd)
+        logger.info(f"⚡ Sending {len(commands_to_send)} commands to {aid}")
 
     db.commit()
-    return {"status": "ok", "command": cmd_str}
+    
+    return {
+        "status": "ok",
+        "command": commands_to_send[0] if commands_to_send else None,
+        "commands": commands_to_send
+    }
 
 
 @app.post("/api/v1/alert")
 async def receive_alert(data: AlertSchema, db: Session = Depends(get_db)):
+    """Store security alert from agent."""
     logger.warning(f"🔥 ALERT [{data.severity}] {data.agent_id}: {data.message}")
     db.add(IncidentLog(
         agent_id=data.agent_id,
@@ -227,9 +245,13 @@ async def receive_alert(data: AlertSchema, db: Session = Depends(get_db)):
 
 @app.post("/api/v1/report/{report_type}")
 async def receive_report(report_type: str, data: ReportSchema, db: Session = Depends(get_db)):
+    """Store structured telemetry report from agent."""
+    logger.info(f"📊 [REPORT] Received: {data.agent_id} -> {report_type}")
     try:
         content_json = json.dumps(data.content)
-    except (TypeError, ValueError):
+        logger.info(f"📊 [REPORT] Content size: {len(content_json)} bytes")
+    except (TypeError, ValueError) as e:
+        logger.error(f"❌ [REPORT] JSON error: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON content")
 
     report = db.query(AgentReport).filter(
@@ -240,27 +262,36 @@ async def receive_report(report_type: str, data: ReportSchema, db: Session = Dep
     if report:
         report.content = content_json  # type: ignore
         report.generated_at = datetime.now()  # type: ignore
+        logger.info(f"✅ [REPORT] Updated existing {report_type}")
     else:
-        db.add(AgentReport(agent_id=data.agent_id, report_type=report_type, content=content_json))
+        db.add(AgentReport(
+            agent_id=data.agent_id,
+            report_type=report_type,
+            content=content_json
+        ))
+        logger.info(f"✅ [REPORT] Created new {report_type}")
 
     db.commit()
-    logger.info(f"📂 Report '{report_type}' updated for {data.agent_id}")
+    logger.info(f"✅ [REPORT] Stored {report_type} for {data.agent_id}")
     return {"status": "stored"}
-
-# --- ADMIN ENDPOINTS ---
 
 
 @app.get("/api/v1/dashboard")
 def dashboard_stats(db: Session = Depends(get_db)):
+    """Retrieve aggregated dashboard metrics and recent incidents."""
     agents = db.query(Agent).all()
-    incidents = db.query(IncidentLog).order_by(desc(IncidentLog.received_at)).limit(50).all()
+    incidents = db.query(IncidentLog).order_by(
+        desc(IncidentLog.received_at)
+    ).limit(50).all()
 
     return {
         "agents": {
             a.agent_id: {
                 "hostname": a.hostname,
                 "last_seen": a.last_seen.isoformat() if a.last_seen else None,
-                "status": "ONLINE" if a.last_seen and (datetime.now() - a.last_seen).total_seconds() < 30 else "OFFLINE",
+                "status": "ONLINE" if a.last_seen and (
+                    datetime.now() - a.last_seen
+                ).total_seconds() < 30 else "OFFLINE",
                 "os": a.os_info,
                 "cpu_percent": a.cpu_percent,
                 "ram_percent": a.ram_percent
@@ -280,52 +311,70 @@ def dashboard_stats(db: Session = Depends(get_db)):
 
 @app.post("/api/v1/admin/command")
 async def queue_command(data: CommandSchema, db: Session = Depends(get_db)):
+    """Queue remote command for agent execution."""
     cmd_str = data.command if isinstance(data.command, str) else json.dumps(data.command)
+    logger.info(f"📨 [COMMAND] Received: {data.target_agent_id} -> {cmd_str}")
 
     if len(cmd_str) > 4096:
+        logger.error(f"❌ [COMMAND] Payload too large: {len(cmd_str)} bytes")
         raise HTTPException(status_code=413, detail="Command payload too large")
 
-    db.add(PendingCommand(agent_id=data.target_agent_id, command=cmd_str))
+    pending = PendingCommand(agent_id=data.target_agent_id, command=cmd_str)
+    db.add(pending)
     db.commit()
-    logger.info(f"⚙️ Command queued for {data.target_agent_id}")
-    return {"status": "queued"}
+    logger.info(f"✅ [COMMAND] Queued for {data.target_agent_id}: {cmd_str}")
+    return {"status": "queued", "command": cmd_str}
 
 
 @app.get("/api/v1/agent/{agent_id}/{report_type}")
 def get_agent_report(agent_id: str, report_type: str, db: Session = Depends(get_db)):
+    """Retrieve specific report type for agent."""
+    logger.info(f"🔍 [GET] Fetching {report_type} for {agent_id}")
     report = db.query(AgentReport).filter(
         AgentReport.agent_id == agent_id,
         AgentReport.report_type == report_type
     ).first()
-    return JSONResponse(content=json.loads(str(report.content))
-                        if report and report.content
-                        else [])
-
-
-# --- STATIC FILES ---
-STATIC_DIR = os.path.join(SERVER_DIR, "static")
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    
+    if report and report.content:
+        data = json.loads(str(report.content))
+        logger.info(
+            f"✅ [GET] Found {report_type}, "
+            f"size: {len(data) if isinstance(data, list) else 'object'}"
+        )
+        return JSONResponse(content=data)
+    else:
+        logger.warning(f"⚠️ [GET] No data for {agent_id}/{report_type}")
+        return JSONResponse(content=[])
 
 
 @app.get("/")
 async def root():
+    """Serve main dashboard interface."""
     index_path = os.path.join(TEMPLATES_DIR, "index.html")
     if not os.path.exists(index_path):
-        return {"error": f"No se encuentra el dashboard en: {index_path}"}   
+        return {"error": f"Dashboard not found at: {index_path}"}
     return FileResponse(index_path)
 
 
 @app.get("/login")
 async def login_page():
+    """Serve login interface."""
     login_path = os.path.join(TEMPLATES_DIR, "login.html")
     if not os.path.exists(login_path):
         return {"error": "Login template not found"}
     return FileResponse(login_path)
 
+
 if __name__ == "__main__":
-    print("🔒 Initializing Basilisk C2 Enterprise v7.0.0...")
+    print("🔒 Initializing Basilisk C2 Enterprise v7.1.0...")
     init_db()
     cert_mgr = CertManager(cert_dir="certs")
     cert, key = cert_mgr.ensure_certificates()
-    uvicorn.run(app, host="0.0.0.0", port=8443, ssl_keyfile=key, ssl_certfile=cert, log_level="info")  # nosec
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8443,
+        ssl_keyfile=key,
+        ssl_certfile=cert,
+        log_level="info"
+    )  # nosec

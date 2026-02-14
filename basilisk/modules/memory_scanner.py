@@ -1,7 +1,18 @@
-# basilisk/modules/memory_scanner.py
 """
-Basilisk EDR - Memory Forensics Module
-Implements raw memory reading via ctypes to detect Process Hollowing.
+Memory Forensics Scanner - Process Hollowing Detection
+
+Detects Process Hollowing via direct memory inspection using ctypes.
+Reads PEB (Process Environment Block) and compares in-memory PE header
+signature against expected "MZ" magic bytes.
+
+Process Hollowing Technique:
+1. Create blank process in suspended state
+2. Unmaps legitimate image from memory
+3. Maps malware image into same base address
+4. Resumes thread - appears as legitimate process
+5. PE header modified or missing in memory
+
+Detection: Compare memory PE header vs expected signature
 """
 import sys
 import ctypes
@@ -11,6 +22,12 @@ from basilisk.utils.logger import Logger
 
 
 class PROCESS_BASIC_INFORMATION(ctypes.Structure):
+    """Windows Process Information Structure for NtQueryInformationProcess.
+    
+    PeBBaseAddress: Pointer to Process Environment Block (PEB) in user mode
+    UniqueProcessId: Process ID
+    Reserved fields: Kernel-level metadata
+    """
     _fields_ = [
         ('Reserved1', ctypes.c_void_p),
         ('PebBaseAddress', ctypes.c_void_p),
@@ -21,7 +38,25 @@ class PROCESS_BASIC_INFORMATION(ctypes.Structure):
 
 
 class MemoryScanner:
+    """Detect process hollowing via PE header signature inspection.
+    
+    Windows-only capability using kernel32.dll and ntdll.dll for low-level
+    process memory reading. Gracefully degrades to disabled on non-Windows.
+    
+    Core Functions:
+    - NtQueryInformationProcess: Get PEB address (ntdll)
+    - ReadProcessMemory: Read bytes from another process (kernel32)
+    - PEB offset +0x10: Contains ImageBase address of loaded module
+    
+    Returns detection status with technique name for MITRE reporting.
+    """
+
     def __init__(self):
+        """Initialize memory scanner and load Windows API handles.
+        
+        Attempts to load kernel32 and ntdll DLLs. Gracefully disables
+        on non-Windows platforms or if DLLs unavailable.
+        """
         self.logger = Logger()
         self.is_windows = sys.platform == "win32"
 
@@ -38,7 +73,19 @@ class MemoryScanner:
                 self.is_windows = False
 
     def _read_memory(self, process_handle, address, size):
-        """Lee bytes de la memoria de otro proceso."""
+        """Read bytes from another process via kernel32.ReadProcessMemory.
+        
+        Cross-process memory read with size validation. Returns None
+        if read fails (access denied, invalid address, etc).
+        
+        Args:
+            process_handle: Valid handle from OpenProcess (must have PROCESS_VM_READ)
+            address: Target address in remote process
+            size: Number of bytes to read
+            
+        Returns:
+            bytes: Raw memory data or None if read failed
+        """
         buffer = ctypes.create_string_buffer(size)
         bytes_read = ctypes.c_size_t(0)
         success = self.k32.ReadProcessMemory(
@@ -51,9 +98,23 @@ class MemoryScanner:
         return buffer.raw if success else None
 
     def detect_hollowing(self, pid: int) -> Dict[str, Any]:
-        """
-        Analiza si el proceso ha sido vaciado (Hollowed) comparando
-        la cabecera PE en memoria con la esperada.
+        """Detect process hollowing by inspecting PE header signature.
+        
+        Process:
+        1. Open process with QUERY_INFORMATION | VM_READ access
+        2. Query NtQueryInformationProcess to get PEB address
+        3. Read ImageBase from PEB+0x10 (module base address)
+        4. Read first 512 bytes from ImageBase (PE header)
+        5. Check for "MZ" magic bytes (0x4D5A)
+        6. Missing/modified header indicates hollowing
+        
+        Args:
+            pid: Process ID to inspect
+            
+        Returns:
+            Dict[str, Any]: Detection result with fields:
+                - suspicious: True if hollowing detected
+                - technique: Description of finding (hollowing type or reason for non-detection)
         """
         if not self.is_windows:
             return {"suspicious": False, "technique": "N/A (Linux Env)"}

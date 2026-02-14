@@ -14,7 +14,6 @@ __pycache__/
 venv/
 env/
 .env
-.flake8
 
 # ===========================
 # 3. Compilación (PyInstaller)
@@ -66,6 +65,7 @@ attack_sim.py
 red_team.py
 prueba_ransomware.py
 genPass.py
+gen_hash.py
 # Script temporal si lo creaste
 tests/temp/
 

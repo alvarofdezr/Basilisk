@@ -1,4 +1,15 @@
-# basilisk/modules/usb_monitor.py
+"""
+USB Device Monitor - Removable Media Enumeration and Detection
+
+Monitors logical drive list for insertion/removal of USB storage devices,
+external hard drives, and SD cards. Cross-platform (Windows/Linux) support
+with appropriate enumeration APIs for each OS.
+
+Security Implications:
+- USB devices bypass data loss prevention (DLP) policies
+- Insider threats can exfiltrate data via USB
+- Attacker can inject malware via infected USB
+"""
 import os
 import string
 import platform
@@ -7,23 +18,45 @@ from basilisk.utils.logger import Logger
 
 
 class USBMonitor:
-    """
-    Monitor de dispositivos de almacenamiento extraíbles.
-    [v7.1.0] Conectado al Dashboard Basilisk (C2).
+    """Monitor system for USB device insertion and removal.
+    
+    Maintains current state of logical drives. On each check cycle,
+    compares previous state with current to identify newly connected
+    or disconnected removable media.
+    
+    Supports:
+    - Windows: Uses win32api.GetLogicalDrives() bitmask enumeration
+    - Linux: Reads /media directory for mounted external storage
     """
 
     def __init__(self, db_manager, c2_client=None, notifier=None):
+        """Initialize USB monitor with current drive state baseline.
+        
+        Enumerates current logical drives and stores as baseline for
+        future delta comparison. Logs detected drives at startup.
+        
+        Args:
+            db_manager: DatabaseManager for event logging
+            c2_client: Optional C2Client for server-side alerts
+            notifier: Optional Notifier for email/webhook dispatch
+        """
         self.db = db_manager
         self.c2 = c2_client
         self.notifier = notifier
         self.logger = Logger()
 
-        # Estado inicial
         self.current_drives = self._get_active_drives()
         self.logger.info(f"USB Monitor Initialized. Active drives: {self.current_drives}")
 
     def _get_active_drives(self) -> Set[str]:
-        """Detecta unidades conectadas (Compatible con Windows)."""
+        """Enumerate logical drives on current system.
+        
+        Windows: Uses bitmask iteration over 26 drive letters
+        Linux: Enumerates /media directory for mounted volumes
+        
+        Returns:
+            Set[str]: Drive letters or mount paths (e.g., {"C:\\", "D:\\", "E:\\"})
+        """
         drives = set()
         try:
             if platform.system() == "Windows":
@@ -37,17 +70,26 @@ class USBMonitor:
                 if os.path.exists('/media'):
                     drives.update([os.path.join('/media', d) for d in os.listdir('/media')])
         except Exception as e:
-            self.logger.error(f"Error enumerando drives: {e}")
+            self.logger.error(f"Error enumerating drives: {e}")
         return drives
 
     def check_usb_changes(self) -> None:
-        """Compara el estado actual con el anterior para detectar cambios."""
+        """Compare current drive state with baseline to detect changes.
+        
+        Identifies newly inserted drives and removed drives by set difference.
+        Logs all changes to database and dispatches alerts via C2 and
+        optional notifier services.
+        
+        Alerts trigger on:
+        - New drive added (USB inserted): WARNING severity
+        - Drive removed (USB ejected): INFO severity
+        """
         try:
             new_state = self._get_active_drives()
 
             added_drives = new_state - self.current_drives
             for drive in added_drives:
-                msg = f"🔌 Dispositivo USB CONECTADO: Unidad {drive}"
+                msg = f"USB Device Connected: {drive}"
                 self.logger.warning(msg)
 
                 self.db.log_event("USB_EVENT", msg, "WARNING")
@@ -60,7 +102,7 @@ class USBMonitor:
 
             removed_drives = self.current_drives - new_state
             for drive in removed_drives:
-                msg = f"❌ Dispositivo USB DESCONECTADO: Unidad {drive}"
+                msg = f"USB Device Disconnected: {drive}"
                 self.logger.info(msg)
 
                 if self.c2:
@@ -70,4 +112,4 @@ class USBMonitor:
                 self.current_drives = new_state
 
         except Exception as e:
-            self.logger.error(f"Error en monitor USB: {e}")
+            self.logger.error(f"Error in USB monitor: {e}")
