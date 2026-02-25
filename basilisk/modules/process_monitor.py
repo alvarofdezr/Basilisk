@@ -34,8 +34,8 @@ class ProcessMonitor:
         self.suspicious_paths = [
             os.getenv("TEMP", "").lower(),
             os.getenv("APPDATA", "").lower(),
-            "/tmp",
-            "/var/tmp"
+            "/tmp", #nosec B108
+            "/var/tmp" #nosec B108
         ]
         self.critical_processes = ["lsass.exe", "svchost.exe", "csrss.exe", "winlogon.exe"]
 

@@ -372,7 +372,7 @@ if __name__ == "__main__":
     cert, key = cert_mgr.ensure_certificates()
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host="0.0.0.0", #nosec B104
         port=8443,
         ssl_keyfile=key,
         ssl_certfile=cert,

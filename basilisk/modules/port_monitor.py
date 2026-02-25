@@ -89,7 +89,7 @@ class PortMonitor:
                         risk = risk_data[1]
                         explanation = risk_data[2]
 
-                    if ip in ["0.0.0.0", "::"]:
+                    if ip in ["0.0.0.0", "::"]: #nosec B104
                         desc += " [EXPOSED]"
                         if risk == "WARNING":
                             risk = "HIGH"
