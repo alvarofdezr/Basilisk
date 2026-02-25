@@ -1,5 +1,3 @@
-
-# agent/agent_core.py
 """
 Basilisk EDR Agent - Enterprise Endpoint Defense Platform
 
@@ -244,7 +242,7 @@ class BasiliskAgent:
         logger.error(f"⚠️ RANSOMWARE DETECTED: {msg}")
         self.c2.send_alert(msg, "CRITICAL", "RANSOMWARE")
 
-    def _cmd_kill_process(self, arg: str) -> None:
+    def _cmd_kill_process(self, arg: str = "") -> None:
         """Handler for KILL command: Terminate process by PID.
         
         Parses PID argument and calls active_response module.
@@ -253,6 +251,10 @@ class BasiliskAgent:
         Args:
             arg: Process ID as string (e.g., "1234")
         """
+        if not arg:
+            logger.error("No PID provided for KILL command.")
+            return
+
         try:
             pid = int(arg)
             if kill_process_by_pid(pid):
@@ -266,19 +268,23 @@ class BasiliskAgent:
         except ValueError:
             logger.error(f"Invalid PID: {arg}")
 
-    def _cmd_yara_scan(self, path: str) -> None:
+    def _cmd_yara_scan(self, arg: str = "") -> None:
         """Handler for SCAN_YARA: Execute YARA malware scans.
         
         Args:
-            path: Target path (file or directory) to scan
+            arg: Target path (file or directory) to scan
         """
-        matches = self.modules['yara'].scan_file(path)
+        if not arg:
+            logger.error("No path provided for SCAN_YARA command.")
+            return
+
+        matches = self.modules['yara'].scan_file(arg)
         if matches:
             self.c2.send_alert(
-                f"YARA Match: {path}", "CRITICAL", "YARA_DETECTION"
+                f"YARA Match: {arg}", "CRITICAL", "YARA_DETECTION"
             )
 
-    def _cmd_report_processes(self, _: str) -> None:
+    def _cmd_report_processes(self, arg: str = "") -> None:
         """Handler for REPORT_PROCESSES: Enumerate and upload process list.
         
         Scans all running processes with risk scoring, uploads array.
@@ -289,7 +295,7 @@ class BasiliskAgent:
         self.c2.upload_report("processes", data)
         logger.success(f"✅ [PROCESSES] Uploaded {len(data)} items")
 
-    def _cmd_report_ports(self, _: str) -> None:
+    def _cmd_report_ports(self, arg: str = "") -> None:
         """Handler for REPORT_PORTS: Enumerate and upload listening services.
         
         Scans all open ports with service enumeration and risk assessment.
@@ -300,7 +306,7 @@ class BasiliskAgent:
         self.c2.upload_report("ports", data)
         logger.success(f"✅ [PORTS] Uploaded {len(data)} items")
 
-    def _cmd_isolate_host(self, _: str) -> None:
+    def _cmd_isolate_host(self, arg: str = "") -> None:
         """Handler for ISOLATE_HOST: Apply firewall-based network containment.
         
         Implements emergency isolation blocking all traffic except C2.
@@ -310,7 +316,7 @@ class BasiliskAgent:
                 "HOST ISOLATED via Firewall.", "CRITICAL", "NET_DEFENSE"
             )
 
-    def _cmd_unisolate_host(self, _: str) -> None:
+    def _cmd_unisolate_host(self, arg: str = "") -> None:
         """Handler for UNISOLATE_HOST: Restore normal network connectivity.
         
         Removes all Basilisk isolation firewall rules.
@@ -318,7 +324,7 @@ class BasiliskAgent:
         if self.modules['isolator'].restore_connection():
             self.c2.send_alert("Connectivity restored.", "INFO", "NET_ALLOW")
 
-    def _cmd_run_audit(self, _: str) -> None:
+    def _cmd_run_audit(self, arg: str = "") -> None:
         """Handler for RUN_AUDIT: Windows compliance verification.
         
         Checks firewall, UAC, Windows Defender, updates status.
@@ -332,7 +338,7 @@ class BasiliskAgent:
         )
         logger.success("✅ [AUDIT] Uploaded")
 
-    def _cmd_report_network(self, _: str) -> None:
+    def _cmd_report_network(self, arg: str = "") -> None:
         """Handler for REPORT_NETWORK_MAP: Upload active connections.
         
         Enumerates ESTABLISHED TCP/UDP connections with process mapping.
@@ -340,7 +346,7 @@ class BasiliskAgent:
         data = self.modules['net_mon'].get_network_snapshot()
         self.c2.upload_report("network_map", data)
 
-    def _cmd_create_baseline(self, _: str) -> None:
+    def _cmd_create_baseline(self, arg: str = "") -> None:
         """Handler for CREATE_BASELINE: Initialize FIM baseline.
         
         Hashes first configured directory and stores baseline in database.
