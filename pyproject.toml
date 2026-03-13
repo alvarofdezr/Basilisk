@@ -1,0 +1,149 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ============================================================
+# Project metadata
+# ============================================================
+[project]
+name = "basilisk-edr"
+version = "7.1.0"
+description = "Basilisk EDR — Advanced Endpoint Detection and Response System"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Álvaro Fernández Ramos", email = "alvarofdezr@outlook.es" }
+]
+requires-python = ">=3.10"
+
+# Runtime dependencies
+dependencies = [
+    # Web framework & server
+    "fastapi==0.122.0",
+    "uvicorn[standard]==0.38.0",
+    "starlette==0.50.0",
+    "python-multipart==0.0.20",
+    "itsdangerous==2.2.0",
+
+    # Database
+    "sqlalchemy==2.0.44",
+
+    # Data validation
+    "pydantic==2.12.4",
+
+    # Security / crypto
+    "argon2-cffi==25.1.0",
+    "cryptography==46.0.3",
+
+    # HTTP client
+    "requests==2.32.5",
+
+    # System / process monitoring
+    "psutil==7.1.0",
+
+    # File system monitoring
+    "watchdog==6.0.0",
+
+    # Malware detection
+    "yara-python==4.5.4",
+
+    # Configuration
+    "pyyaml==6.0.3",
+    "python-dotenv==1.1.1",
+
+    # Reporting
+    "fpdf2==2.8.5",
+]
+
+[project.optional-dependencies]
+# Windows-only modules — install manually on Windows:
+#   uv pip install basilisk-edr[windows]
+windows = [
+    "pywin32==311",
+]
+
+# Development tools
+dev = [
+    "pytest==9.0.1",
+    "pytest-mock==3.15.1",
+    "pytest-cov==6.1.0",
+    "black==25.9.0",
+    "mypy==1.15.0",
+    "bandit>=1.7.0",
+    "safety",
+    "ruff",
+    "types-requests",
+    "types-pyyaml",
+]
+
+[project.urls]
+Homepage   = "https://github.com/alvarofdezr/basilisk"
+Repository = "https://github.com/alvarofdezr/basilisk"
+Issues     = "https://github.com/alvarofdezr/basilisk/issues"
+Security   = "https://github.com/alvarofdezr/basilisk/blob/main/SECURITY.md"
+
+# Entry points — lets you run `basilisk-server` and `basilisk-agent` from the terminal
+[project.scripts]
+basilisk-server = "basilisk.server.server:main"
+basilisk-agent  = "basilisk.agent.engine:main"
+
+# ============================================================
+# uv configuration
+# ============================================================
+[dependency-groups]
+dev = [
+    "pytest==9.0.1",
+    "pytest-mock==3.15.1",
+    "pytest-cov==6.1.0",
+    "black==25.9.0",
+    "mypy==1.15.0",
+    "bandit>=1.7.0",
+    "safety", 
+    "ruff",
+    "types-requests",
+    "types-pyyaml",
+]
+
+# ============================================================
+# Tool configurations
+# ============================================================
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths  = ["tests"]
+addopts    = "-v --tb=short"
+
+[tool.black]
+line-length    = 127
+target-version = ["py310", "py311"]
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.mypy]
+python_version         = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores    = false
+exclude                = ["venv", ".venv", "build", "dist"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv"]
+skips        = ["B104"]   # bind to 0.0.0.0 — intentional in server
+
+[tool.ruff]
+line-length    = 127
+target-version = "py310"
+exclude        = ["venv", ".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90"]
+ignore = ["E203", "E402", "C901"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["basilisk"]

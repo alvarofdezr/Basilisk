@@ -1,5 +1,5 @@
 # ===========================
-# 1. Python & Sistema
+# 1. Python & System
 # ===========================
 __pycache__/
 *.py[cod]
@@ -9,23 +9,26 @@ __pycache__/
 .DS_Store
 
 # ===========================
-# 2. Entornos Virtuales
+# 2. Virtual Environments
 # ===========================
 venv/
 env/
+.venv/         
 .env
 
 # ===========================
-# 3. Compilación (PyInstaller)
+# 3. Dependencias y Locks
+# ===========================
+# uv.lock SÍ se sube a git (garantiza reproducibilidad, como package-lock.json)
+
+# ===========================
+# 4. Compilation (PyInstaller)
 # ===========================
 build/
 dist/
-# Opcional: Si quieres ignorar los .spec descomenta las siguientes líneas. 
-# (Yo recomiendo dejarlos para que otros sepan cómo compilar tu .exe)
-# *.spec
 
 # ===========================
-# 4. Datos y Logs (Runtime)
+# 5. Data and logs (Runtime)
 # ===========================
 *.db
 *.sqlite
@@ -33,31 +36,27 @@ dist/
 *.db-journal
 *.db-wal
 *.db-shm
-
-# Logs
 *.log
 server_logs.txt
 
 # ===========================
-# 5. Reportes Generados
+# 6. Generated Reports
 # ===========================
 *.csv
 reporte_seguridad_*.csv
 
 # ===========================
-# 6. Configuración y Secretos
+# 7. Config Files and Certificates
 # ===========================
-# config.yaml (Tiene tu hash y rutas privadas -> IGNORAR)
 config.yaml
 config_copy.yaml
 server/c2_server.db
 certs/
 *.pem
 *.key
-# config.example.yaml (Plantilla vacía -> SÍ SUBIR)
 
 # ===========================
-# 7. Scripts de Hacking/Test (NO SUBIR)
+# 8. Hacking/Test Scripts
 # ===========================
 test_folder/prueba.txt
 test_folder/prueba2.txt
@@ -66,13 +65,20 @@ red_team.py
 prueba_ransomware.py
 genPass.py
 gen_hash.py
-# Script temporal si lo creaste
 tests/temp/
 
 # ===========================
-# 8. IDEs y Sistema Operativo
+# 9. IDEs
 # ===========================
 .vscode/
 .idea/
 Thumbs.db
 Desktop.ini
+
+# ===========================
+# 10. Mypy / Coverage
+# ===========================
+.mypy_cache/
+.coverage
+htmlcov/
+.pytest_cache/

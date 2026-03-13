@@ -8,7 +8,7 @@ import sys
 
 class Logger:
     """Singleton logger with automatic UTF-8 encoding and dual stream handling."""
-    
+
     _instance = None
 
     def __new__(cls):

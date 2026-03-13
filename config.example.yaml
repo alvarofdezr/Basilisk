@@ -1,5 +1,12 @@
+# ============================================================
+# Basilisk EDR — Example Configuration
+# Copy to config.yaml and fill in your values.
+# Secrets (API keys, password hashes) must go in .env — never here.
+# ============================================================
+
 system:
-  version: "6.6.0"
+  # FIX: version was "6.6.0" while codebase is 7.1.0
+  version: "7.1.0"
   log_level: "INFO"
 
 monitoring:
@@ -18,4 +25,13 @@ network:
     - "svchost.exe"
     - "python.exe"
 
-# NOTA: Los secretos (API Keys, Passwords) deben configurarse en el archivo .env
+# ============================================================
+# All secrets must be set via environment variables or .env:
+#
+#   BASILISK_ADMIN_PASSWORD_HASH  — Argon2id hash of admin password
+#   BASILISK_SERVER_SECRET_KEY    — Random 32+ char session key
+#   BASILISK_C2_URL               — https://<server-ip>:8443
+#   BASILISK_VIRUSTOTAL_API_KEY   — VirusTotal API v3 key (optional)
+#   BASILISK_TELEGRAM_TOKEN       — Telegram bot token (optional)
+#   BASILISK_TELEGRAM_CHAT_ID     — Telegram chat ID (optional)
+# ============================================================

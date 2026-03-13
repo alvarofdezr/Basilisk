@@ -9,39 +9,36 @@ on:
 jobs:
   quality-check:
     runs-on: windows-latest
-    
+
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python 3.10
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.10"
 
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install flake8 pytest mypy bandit
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+        enable-cache: true   # cache the .venv between runs for speed
 
-    - name: Lint with Flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings.
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Install dependencies
+      run: uv sync --extra windows
 
-    - name: Type Check with Mypy
-      run: |
-        mypy basilisk --ignore-missing-imports
+    - name: Lint — syntax errors and undefined names
+      run: uv run flake8 basilisk --count --select=E9,F63,F7,F82 --show-source --statistics
 
-    - name: Security Scan with Bandit
-      run: |
-        bandit -r basilisk -ll
+    - name: Lint — full analysis (warnings only)
+      run: uv run flake8 basilisk --count --exit-zero --max-line-length=127 --statistics
 
-    - name: Run Unit Tests
-      run: |
-        # Añadimos el directorio actual al PYTHONPATH
-        $env:PYTHONPATH = "."
-        pytest
+    - name: Type Check
+      run: uv run mypy basilisk
+
+    - name: Security Scan
+      run: uv run bandit -r basilisk -ll
+
+    - name: Run Tests
+      run: uv run pytest --tb=short

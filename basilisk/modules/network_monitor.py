@@ -27,7 +27,7 @@ class NetworkMonitor:
     - Whitelisting for trusted applications (Chrome, Firefox, etc.)
     - Asynchronous alerting via thread pool
     """
-    
+
     def __init__(self, db_manager: Any, c2_client: Any = None, notifier: Any = None, config: Any = None):
         """Initialize network monitor with database and optional C2 integration.
         

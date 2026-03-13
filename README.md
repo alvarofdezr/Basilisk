@@ -6,6 +6,7 @@
     <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
     <img src="https://img.shields.io/badge/platform-windows%20%7C%20linux-lightgrey" alt="Platform">
     <img src="https://img.shields.io/badge/version-7.1.0-blue" alt="Version">
+    <img src="https://img.shields.io/badge/package%20manager-uv-purple" alt="uv">
 </p>
 
 | Feature                | Description                                  |
@@ -15,8 +16,7 @@
 | Active Response        | Kill, isolate, scan, and audit remotely      |
 | YARA & Threat Intel    | Malware detection and VirusTotal integration |
 | Compliance Auditing    | UAC, Defender, Firewall, Registry, USB, etc. |
-| Secure C2              | HTTPS, session guard, RBAC, self-signed cert |
-| Docker Support         | Easy deployment with Docker Compose          |
+| Secure C2              | HTTPS, session guard, RBAC, agent token auth |
 | Type Safety            | Pydantic schemas for all data flows          |
 | Professional Dashboard | Cyberpunk-themed web interface               |
 
@@ -31,7 +31,7 @@
 ### Core Capabilities
 * **Enterprise Architecture**: Fully modular package structure (`basilisk` core)
 * **Type Safety**: End-to-end data validation using **Pydantic** schemas
-* **Professional Documentation**: Comprehensive docstrings and type hints
+* **Modern Tooling**: Managed with **uv** — fast, reproducible, standards-compliant
 * **Code Quality**: Refactored codebase with industry-standard practices
 
 ### Active Response
@@ -50,10 +50,12 @@
 * File Integrity Monitoring (FIM)
 
 ### Security Features
-* **Secure C2**: HTTPS-ready server with Session Guard and Role-Based Access
+* **Secure C2**: HTTPS server with Session Guard and Role-Based Access
+* **Agent Authentication**: Shared token (`X-Agent-Token`) on all agent endpoints
 * **Anti-Ransomware**: Canary file detection with watchdog monitoring
 * **Threat Intelligence**: VirusTotal integration for hash reputation
 * **Audit Logging**: Comprehensive event tracking and reporting
+* **Fail-secure**: Server refuses to start with missing secrets — no insecure fallbacks
 
 ---
 
@@ -61,110 +63,97 @@
 
 ### Prerequisites
 * Python 3.10+
-* Virtual Environment (Recommended)
-* Docker & Docker Compose (Optional, for containerized deployment)
-* Administrator/Root privileges (for full agent capabilities)
+* [uv](https://docs.astral.sh/uv/) — install once, globally
+* Administrator/Root privileges (for full agent capabilities on Windows)
+
+### Install uv (once, globally)
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+```bash
+# Linux / macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ### Quick Setup
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/alvarofdezr/basilisk.git
-   cd basilisk
-   ```
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv venv
-   # Windows:
-   .\venv\Scripts\activate
-   # Linux/Mac:
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configuration:**
-   * Copy `config.example.yaml` to `config.yaml`
-   * Edit `config.yaml` to set your Admin credentials and C2 IP
-   * Alternatively, use a `.env` file to override secrets (see `basilisk/core/config.py`)
-   
-   **Default Credentials:**
-   * Username: `admin`
-   * Password: `admin123` (⚠️ **Change immediately in production!**)
-
-### Docker Deployment (Optional)
-Deploy Basilisk C2 and agent simulator using Docker Compose:
+**1. Clone the repository:**
 ```bash
-docker-compose up --build
+git clone https://github.com/alvarofdezr/basilisk.git
+cd basilisk
 ```
-* C2 server: `https://localhost:8443`
-* Accept self-signed certificate warning
-* Configure environment variables in `.env`
 
-### Security Recommendations
-* ⚠️ **Change all default credentials before production use**
-* Use strong, unique passwords (minimum 16 characters)
-* Store secrets securely (consider using a secrets manager)
-* Restrict network access to the C2 server
-* Review and harden firewall rules if using network isolation features
-* Enable HTTPS with valid certificates in production
-* Regularly update dependencies for security patches
+**2. Create the virtual environment and install all dependencies:**
+```bash
+# uv creates .venv automatically and installs everything from uv.lock
+uv sync
+
+# On Windows, also install the Windows-specific extras:
+uv sync --extra windows
+```
+
+That's it. No manual `python -m venv`, no `pip install`. uv handles everything.
+
+**3. Configure secrets:**
+
+```bash
+# Copy the example env file
+cp .env.example .env
+```
+
+Generate the required secrets:
+
+```bash
+# Generate Argon2 hash for your admin password
+uv run python -c "from basilisk.core.security import hash_password; print(hash_password('your_password'))"
+
+# Generate session secret key
+uv run python -c "import secrets; print(secrets.token_hex(32))"
+
+# Generate agent token
+uv run python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Edit `.env` with the generated values:
+
+```ini
+BASILISK_ADMIN_PASSWORD_HASH=$argon2id$v=19$...
+BASILISK_SERVER_SECRET_KEY=<generated>
+BASILISK_AGENT_TOKEN=<generated>
+```
+
+> ⚠️ **Default Credentials**: `admin` / `admin123` — **change before any real use**.
 
 ---
 
 ## ⚡ Usage
 
-### 1. Start the C2 Server
-The server handles agent connections, stores telemetry in `basilisk.db`, and hosts the Web Dashboard.
+### Start the C2 Server
 
 ```bash
-python run_server.py
+uv run python run_server.py
 ```
-* Dashboard URL: `https://localhost:8443`
-* Accept the self-signed certificate warning on first launch
-* Login with admin credentials
 
-### 2. Start the Agent
-Run this on the target machine (requires Admin privileges for full visibility):
+Dashboard: `https://localhost:8443` — accept the self-signed certificate warning on first launch.
+
+### Start the Agent
+
+Run on the target Windows machine (Administrator privileges required for full visibility):
+
 ```bash
-python run_agent.py
+uv run python run_agent.py
 ```
 
-**Agent Features:**
-* Automatic C2 connection with heartbeat every 3 seconds
-* Real-time telemetry collection
-* Command execution from C2
-* Modular threat detection
+### Using the Dashboard
 
-### 3. Using the Dashboard
-
-**Main Features:**
-* 🖥️ **Agent Overview**: See all connected endpoints
-* 📊 **Live Incident Feed**: Real-time security alerts
-* 🔍 **Agent Inspector**: Deep dive into process, port, and audit data
-* 🚨 **Active Response**: Execute remote commands (kill, isolate, scan)
-* 📈 **Metrics**: Charts for threat severity and attack vectors
-
-**Common Workflows:**
-1. Click on an agent to open Inspector
-2. View processes, ports, or compliance audit
-3. Send commands (refresh data, run scans, etc.)
-4. Monitor incidents in real-time feed
-
-### CLI Options
-Configure via environment variables:
-```bash
-# Server
-export BASILISK_ADMIN_PASSWORD_HASH="your_argon2_hash_here"
-export BASILISK_SERVER_SECRET_KEY="your_secret_key_here"
-
-# Agent
-export BASILISK_C2_URL="https://your-server:8443"
-export BASILISK_VIRUSTOTAL_API_KEY="your_vt_api_key"
-```
+1. Open `https://localhost:8443` and log in
+2. Connected agents appear in the left panel
+3. Click an agent to open the **Inspector** (processes, ports, compliance audit)
+4. Use the **Response** tab to send remote commands
+5. Monitor the **Live Incident Feed** for real-time alerts
 
 ---
 
@@ -180,7 +169,7 @@ basilisk/
 │   ├── schemas.py             # Pydantic data models
 │   ├── security.py            # Argon2 password hashing
 │   └── active_response.py     # Process termination
-├── modules/                   # EDR capabilities (see table below)
+├── modules/                   # EDR capabilities
 ├── server/
 │   ├── server.py              # FastAPI C2 server
 │   ├── database.py            # SQLAlchemy ORM models
@@ -195,14 +184,14 @@ basilisk/
 ├── rules/
 │   └── index.yar              # YARA signatures
 ├── tests/
-│   ├── test_smoke.py          # Basic import tests
-│   └── test_flow.py           # End-to-end workflow tests
+│   ├── test_smoke.py          # Unit tests (imports, schemas, security)
+│   └── test_flow.py           # End-to-end integration test
 ├── run_agent.py               # Agent entry point
 ├── run_server.py              # Server entry point
-├── setup.py                   # Package configuration
-├── requirements.txt           # Python dependencies
-├── config.yaml                # Main configuration (create from example)
-└── docker-compose.yml         # Container orchestration
+├── pyproject.toml             # Project definition, dependencies, tool config
+├── uv.lock                    # Locked dependency tree (commit this)
+├── .env.example               # Environment variable template
+└── config.example.yaml        # Configuration template
 ```
 
 ---
@@ -211,148 +200,146 @@ basilisk/
 
 ### 1. C2 Server (`basilisk/server/`)
 * **FastAPI** backend for agent management, dashboards, and command dispatch
-* Stores telemetry and incident logs in local SQLite database (`basilisk.db`)
-* Handles authentication, session management, and secure communications (HTTPS)
-* Exposes REST API endpoints for agent heartbeat, alerts, and reports
-* **New in 7.1.0**: Fixed static file serving, improved logging, enhanced documentation
+* Agent endpoints protected by shared `X-Agent-Token` header
+* Session-based admin authentication with rate limiting and expiry
+* Refuses to start if required secrets are missing
 
 ### 2. Agent (`basilisk/agent/`)
 * Modular, multi-threaded Python agent for Windows endpoints
-* Periodically sends telemetry and receives commands from the C2
+* Sends `X-Agent-Token` on every request to the C2
 * Implements dispatcher pattern for O(1) command routing
-* Integrates multiple security modules
-* **New in 7.1.0**: Enhanced command dispatcher, improved error handling
 
-### 3. Core & Shared (`basilisk/core/`)
-* Configuration loader (YAML/env)
-* Pydantic schemas for strict typing
-* Database manager with thread-safe operations
-* **New in 7.1.0**: Comprehensive type hints, improved documentation
+### 3. EDR Modules (`basilisk/modules/`)
 
-### 4. EDR Modules (`basilisk/modules/`)
-
-| Module                | Description                                      |
-|-----------------------|--------------------------------------------------|
-| `network_monitor`     | Detects suspicious network connections           |
-| `process_monitor`     | Monitors processes and risk scoring              |
-| `fim`                 | File Integrity Monitoring (baseline & live)      |
-| `yara_scanner`        | YARA-based malware detection                     |
-| `anti_ransomware`     | Canary files/honeypot for ransomware detection   |
-| `usb_monitor`         | Detects USB device insertions/removals          |
-| `port_monitor`        | Audits open/listening ports and risk             |
-| `audit_scanner`       | System compliance checks (UAC, Defender, FW)    |
-| `registry_monitor`    | Detects persistence via registry changes         |
-| `log_watcher`         | Monitors logs for brute force/intrusion attempts |
-| `network_isolation`   | Active response: isolate host via firewall       |
-| `threat_intel`        | VirusTotal hash reputation lookups               |
-| `win_event_watcher`   | Monitors Windows Security Event Log              |
-| `memory_scanner`      | Process hollowing detection                      |
-
-**New in 7.1.0**: All modules now have comprehensive docstrings and type hints
+| Module                | Platform | Description                                      |
+|-----------------------|----------|--------------------------------------------------|
+| `network_monitor`     | All      | Detects suspicious network connections           |
+| `process_monitor`     | All      | Monitors processes and risk scoring              |
+| `fim`                 | All      | File Integrity Monitoring                        |
+| `yara_scanner`        | All      | YARA-based malware detection                     |
+| `anti_ransomware`     | All      | Canary files for ransomware detection            |
+| `usb_monitor`         | All      | Detects USB device insertions/removals           |
+| `port_monitor`        | All      | Audits open ports and risk assessment            |
+| `threat_intel`        | All      | VirusTotal hash reputation (TTL-bounded cache)   |
+| `audit_scanner`       | Windows  | System compliance checks (UAC, Defender, FW)     |
+| `registry_monitor`    | Windows  | Detects persistence via registry changes         |
+| `win_event_watcher`   | Windows  | Monitors Windows Security Event Log              |
+| `memory_scanner`      | Windows  | Process hollowing detection                      |
+| `network_isolation`   | Windows  | Isolate host via Windows Firewall                |
+| `log_watcher`         | All      | Monitors logs for brute force attempts           |
 
 ---
 
 ## 🧪 Testing & Development
 
 ### Running Tests
-Basilisk uses **pytest** for smoke and integration tests.
 
 ```bash
-# Run all tests
-pytest
+# All tests
+uv run pytest
 
-# Run specific test
-pytest tests/test_smoke.py
+# With coverage report
+uv run pytest --cov=basilisk --cov-report=term-missing
 
-# Run with verbose output
-pytest -v
+# Stop on first failure
+uv run pytest -x
 ```
 
-### Test Flow Script
-Test the complete command flow (login → queue commands → verify reports):
+### Integration Test
+
+Requires both server and agent running:
+
 ```bash
-python tests/test_flow.py
+# Set these in your .env (or export them):
+# BASILISK_TEST_PASS=your_password
+# BASILISK_TEST_AGENT_ID=AGENT_YOUR_HOSTNAME
+
+uv run python tests/test_flow.py
 ```
 
-### Linting & Formatting
-Code style is enforced with **flake8** and **black**.
+### Linting & Type Checking
 
 ```bash
-# Run lint checks
-flake8 basilisk/
+# Syntax errors and undefined names (most critical)
+uv run flake8 basilisk --count --select=E9,F63,F7,F82 --show-source
 
-# Auto-format code
-black basilisk/
+# Full lint
+uv run flake8 basilisk --count --exit-zero --max-line-length=127
 
 # Type checking
-mypy basilisk --ignore-missing-imports
+uv run mypy basilisk
 
-# Security scan
-bandit -r basilisk -ll
+# Security scan (SAST)
+uv run bandit -r basilisk -ll
+
+# Known vulnerabilities in dependencies
+uv run safety check
 ```
 
-### Development Workflow
-1. Create feature branch: `git checkout -b feature/your-feature`
-2. Make changes with proper documentation
-3. Run tests: `pytest`
-4. Run linters: `flake8` and `mypy`
-5. Commit with conventional format: `feat: add new feature`
-6. Submit pull request
+### Adding / Removing Dependencies
+
+```bash
+# Add a runtime dependency
+uv add some-package
+
+# Add a dev-only dependency
+uv add --dev some-package
+
+# Remove a dependency
+uv remove some-package
+
+# Upgrade all dependencies to latest compatible versions
+uv lock --upgrade
+uv sync
+```
+
+> **Never** edit `uv.lock` by hand. Always use `uv add` / `uv remove`.
+
+---
+
+## 🔒 Security
+
+See [SECURITY.md](SECURITY.md) for the full security policy, known limitations, and vulnerability disclosure process.
+
+Key points:
+* Change default credentials (`admin`/`admin123`) **before any real use**
+* Generate strong unique values for all three required secrets
+* The server will not start with missing secrets — no insecure fallbacks
+* Agent endpoints require `X-Agent-Token` authentication
 
 ---
 
 ## 📋 Version History
 
-### v7.1.0 (2025-02-14) - Major Refactoring
-* **Fixed**: 403 Forbidden error on static files
-* **Improved**: Comprehensive code documentation (18 files)
-* **Enhanced**: Type hints across entire codebase
-* **Converted**: All Spanish comments to English
-* **Added**: JSDoc headers for JavaScript files
-* **Updated**: Professional commit message standards
-* **Maintained**: 100% backward compatibility
+### v7.1.0 (2025-02-14)
+* **Migrated** to `uv` + `pyproject.toml` — modern, reproducible tooling
+* **Fixed** agent endpoint authentication (shared token, no more open endpoints)
+* **Fixed** server fails fast on missing secrets instead of using insecure fallbacks
+* **Fixed** `docker-compose.yml` pointing to non-existent file
+* **Fixed** version inconsistencies across `Dockerfile`, `config.example.yaml`, `SECURITY.md`
+* **Fixed** `setup.py` placeholder URL
+* **Fixed** Windows-only imports crashing on Linux CI
+* **Fixed** `ThreatIntel` cache: now has TTL and max-size with LRU eviction
+* **Improved** smoke tests: 17 real assertions (previously `assert True`)
+* **Improved** `test_flow.py`: credentials from env vars, no hardcoded secrets
 
-### v7.0.0 (Previous)
+### v7.0.0
 * Enterprise architecture with modular design
-* Pydantic schemas for type safety
-* Enhanced C2 server with RBAC
-* Docker support
-* Cyberpunk-themed dashboard
+* Pydantic schemas, SQLAlchemy ORM, FastAPI C2 server
+* Cyberpunk-themed dashboard, Docker support
 
 ---
 
 ## 🛡️ License
 
-MIT License - See [LICENSE.md](LICENSE.md) for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
-## 🤝 Support & Contact
+## 🤝 Contact
 
 * **Issues**: [GitHub Issues](https://github.com/alvarofdezr/basilisk/issues)
-* **Security**: Contact maintainer directly at `alvarofdezr@outlook.es`
-* **Documentation**: See `/docs` folder for detailed guides
-* **Community**: Contributions and feedback welcome!
-
----
-
-## 🙏 Acknowledgments
-
-* Built with [FastAPI](https://fastapi.tiangolo.com/) for the C2 server
-* Uses [Pydantic](https://pydantic-docs.helpmanual.io/) for data validation
-* Powered by [SQLAlchemy](https://www.sqlalchemy.org/) ORM
-* UI components from [Bootstrap 5](https://getbootstrap.com/)
-* Icons from [Font Awesome](https://fontawesome.com/)
-
----
-
-## 📝 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
-
-## 🔒 Security Policy
-
-See [SECURITY.md](SECURITY.md) for security advisories and responsible disclosure.
+* **Security**: `alvarofdezr@outlook.es`
 
 ---
 

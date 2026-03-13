@@ -20,7 +20,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 class Agent(Base):
     """Endpoint agent registration and health metrics."""
     __tablename__ = "agents"
-    
+
     agent_id = Column(String, primary_key=True, index=True)
     hostname = Column(String)
     os_info = Column(String)
@@ -33,7 +33,7 @@ class Agent(Base):
 class IncidentLog(Base):
     """Security alerts and threat detections."""
     __tablename__ = "incidents"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(String, index=True)
     type = Column(String)
@@ -45,7 +45,7 @@ class IncidentLog(Base):
 class AgentReport(Base):
     """Structured telemetry reports (processes, ports, audit)."""
     __tablename__ = "reports"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(String, index=True)
     report_type = Column(String)
@@ -56,7 +56,7 @@ class AgentReport(Base):
 class PendingCommand(Base):
     """Command queue for remote execution."""
     __tablename__ = "commands"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(String, index=True)
     command = Column(String)

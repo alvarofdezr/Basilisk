@@ -13,7 +13,7 @@ class TelegramNotifier:
     def __init__(self, config: Config) -> None:
         self.logger = Logger()
         alerts_config = config.data.get("alerts", {}).get("telegram", {})
-        
+
         self.enabled = alerts_config.get("enabled", False)
         self.token = alerts_config.get("token", "")
         self.chat_id = alerts_config.get("chat_id", "")
