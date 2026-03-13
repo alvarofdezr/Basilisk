@@ -28,11 +28,8 @@ jobs:
     - name: Install dependencies
       run: uv sync --extra windows
 
-    - name: Lint — syntax errors and undefined names
-      run: uv run flake8 basilisk --count --select=E9,F63,F7,F82 --show-source --statistics
-
-    - name: Lint — full analysis (warnings only)
-      run: uv run flake8 basilisk --count --exit-zero --max-line-length=127 --statistics
+    - name: Lint Code with Ruff
+      run: uv run ruff check basilisk
 
     - name: Type Check
       run: uv run mypy basilisk
