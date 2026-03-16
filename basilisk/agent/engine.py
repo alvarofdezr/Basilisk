@@ -19,7 +19,7 @@ Supported Commands:
 - REPORT_*: Enumerate and upload (processes, ports, network, audit)
 - SCAN_YARA: Malware signature scanning
 - ISOLATE_HOST: Firewall-based network containment
-- RUN_AUDIT: Windows compliance verification
+- RUN_AUDIT: Windows compliance verification (Windows only)
 - CREATE_BASELINE: Initialize filesystem baseline
 """
 
@@ -30,7 +30,7 @@ import platform
 import os
 import urllib3
 import threading
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -51,10 +51,14 @@ from basilisk.modules.threat_intel import ThreatIntel
 from basilisk.modules.anti_ransomware import CanarySentry
 from basilisk.modules.yara_scanner import YaraScanner
 from basilisk.modules.network_isolation import NetworkIsolator
-from basilisk.modules.audit_scanner import AuditScanner
 from basilisk.utils.system_monitor import get_system_metrics
 from basilisk.utils.logger import Logger
 
+# Windows-only modules — imported conditionally to avoid crashes on Linux
+if sys.platform == "win32":
+    from basilisk.modules.audit_scanner import AuditScanner
+else:
+    AuditScanner = None  # type: ignore[assignment,misc]
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 HOSTNAME = platform.node()
@@ -73,25 +77,16 @@ class C2Client:
 
     Sends X-Agent-Token header on every request so the server can verify
     the caller is a legitimate agent. Token is read from BASILISK_AGENT_TOKEN
-    environment variable (loaded from .env via Config).
-
-    Disables SSL verification for lab environments with self-signed certs.
+    environment variable.
     """
 
     def __init__(self, config: Config):
-        """Initialize C2 client with server connection parameters.
-
-        Args:
-            config: Config instance with c2_url and api endpoint
-        """
         self.session = requests.Session()
         self.session.verify = False
         self.agent_id = f"AGENT_{HOSTNAME}"
         self.server_url = config.c2_url
         self.timeout = 5
 
-        # Read the shared agent token from environment and attach it to every
-        # request automatically so no individual method needs to handle it.
         agent_token = os.getenv("BASILISK_AGENT_TOKEN", "").strip()
         if not agent_token:
             logger.warning(
@@ -102,14 +97,7 @@ class C2Client:
         self.session.headers.update({"X-Agent-Token": agent_token})
 
     def send_heartbeat(self, status: str) -> Dict[str, Any]:
-        """Send periodic telemetry and receive command batch.
-
-        Args:
-            status: Agent status string (e.g., "ONLINE")
-
-        Returns:
-            Dict: Server response with "commands" array or empty dict on failure
-        """
+        """Send periodic telemetry and receive command batch."""
         metrics = get_system_metrics()
         try:
             payload = {
@@ -136,13 +124,7 @@ class C2Client:
         severity: str = "WARNING",
         alert_type: str = "GENERAL",
     ) -> None:
-        """Transmit security alert to C2 (fire-and-forget pattern).
-
-        Args:
-            msg: Human-readable alert message
-            severity: Level (INFO, WARNING, CRITICAL, ERROR)
-            alert_type: Category (PROCESS_ALERT, RANSOMWARE, NET_ANOMALY, etc.)
-        """
+        """Transmit security alert to C2 (fire-and-forget pattern)."""
         try:
             logger.info(f"📤 Alert: {msg}")
             payload = {
@@ -160,20 +142,12 @@ class C2Client:
             pass
 
     def upload_report(self, dtype: str, content: Any) -> None:
-        """Upload enumeration report (processes, ports, network, audit).
-
-        Args:
-            dtype: Report type (processes, ports, network_map, audit)
-            content: List of dictionaries containing enumeration results
-        """
+        """Upload enumeration report (processes, ports, network, audit)."""
         try:
             logger.info(f"📤 Uploading report: {dtype} ({len(content)} items)")
             self.session.post(
                 f"{self.server_url}/api/v1/report/{dtype}",
-                json={
-                    "agent_id": self.agent_id,
-                    "content": content,
-                },
+                json={"agent_id": self.agent_id, "content": content},
                 timeout=15,
             )
         except Exception as e:
@@ -181,32 +155,22 @@ class C2Client:
 
 
 class BasiliskAgent:
-    """Agent orchestration engine with Command Dispatcher architecture.
-
-    Lifecycle:
-    1. __init__: Load config, initialize all modules, map commands
-    2. start(): Spawn background workers, enter heartbeat loop
-    3. Main loop: Poll C2, dispatch commands to thread pool
-    4. Workers: Continuous monitoring for anomalies
-
-    Threading Model:
-    - Main thread: Heartbeat loop + USB polling
-    - Command thread pool (3 workers): Async command execution
-    - Background workers (3 threads): Process, FIM, Network monitoring
-    - Ransomware CanarySentry: Event-driven thread
-    """
+    """Agent orchestration engine with Command Dispatcher architecture."""
 
     def __init__(self):
-        """Initialize agent: Load config, setup modules, map commands."""
         logger.info("🛡️ Initializing Basilisk Agent v7.1.0 (Dispatcher Mode)...")
         self.running = False
         self.config = Config()
         self.db = DatabaseManager(db_name=self.config.db_name)
         self.c2 = C2Client(self.config)
 
+        # AuditScanner is Windows-only. On Linux it is None and RUN_AUDIT
+        # commands will be skipped gracefully.
+        audit_module: Optional[Any] = AuditScanner() if AuditScanner is not None else None
+
         self.modules = {
             "yara":     YaraScanner(),
-            "audit":    AuditScanner(),
+            "audit":    audit_module,
             "isolator": NetworkIsolator(self.config.c2_url),
             "proc_mon": ProcessMonitor(),
             "ti":       ThreatIntel(self.config.virustotal_api_key),
@@ -281,6 +245,10 @@ class BasiliskAgent:
             self.c2.send_alert("Connectivity restored.", "INFO", "NET_ALLOW")
 
     def _cmd_run_audit(self, arg: str = "") -> None:
+        if self.modules["audit"] is None:
+            logger.warning("RUN_AUDIT skipped — AuditScanner requires Windows.")
+            self.c2.send_alert("Audit skipped: Windows-only module.", "WARNING", "SECURITY_AUDIT")
+            return
         logger.info("📋 [AUDIT] Starting audit scan...")
         report = self.modules["audit"].perform_audit()
         self.c2.upload_report("audit", report)
@@ -297,10 +265,7 @@ class BasiliskAgent:
         self.c2.send_alert("FIM Baseline updated.", "INFO", "SECURITY_AUDIT")
 
     def _process_command_payload(self, raw_cmd: str) -> None:
-        """Parse and execute single command string.
-
-        Format: "ACTION" or "ACTION:ARGUMENT"
-        """
+        """Parse and execute single command string (format: ACTION or ACTION:ARG)."""
         try:
             logger.info(f"⚡ Received Task: {raw_cmd}")
             action = raw_cmd

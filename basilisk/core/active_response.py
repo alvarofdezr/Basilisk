@@ -1,34 +1,37 @@
-# basilisk/core/active_response.py
+"""
+Basilisk Active Response
+Process termination with SIGTERM → SIGKILL escalation.
+"""
 import psutil
 from basilisk.utils.logger import Logger
+
+_logger = Logger()
 
 
 def kill_process_by_pid(pid: int) -> bool:
     """
-    Attempts to terminate a malicious process by its PID.
-    Escalates from SIGTERM (soft kill) to SIGKILL (hard kill) if necessary.
+    Terminate a process by PID. Escalates from SIGTERM to SIGKILL if needed.
 
     Returns:
-        bool: True if operation successful, False otherwise.
+        True if the process was terminated, False otherwise.
     """
-    logger = Logger()
     try:
         process = psutil.Process(pid)
-        process.terminate()  # Attempt graceful shutdown
+        process.terminate()
         try:
             process.wait(timeout=3)
         except psutil.TimeoutExpired:
-            process.kill()  # Force execution halt (Kill -9)
+            process.kill()
 
-        logger.success(f"Threat neutralized. PID {pid} terminated.")
+        _logger.success(f"Threat neutralized. PID {pid} terminated.")
         return True
 
     except psutil.NoSuchProcess:
-        logger.warning(f"Process {pid} no longer exists.")
+        _logger.warning(f"Process {pid} no longer exists.")
         return False
     except psutil.AccessDenied:
-        logger.error(f"Access denied terminating PID {pid}. Admin privileges required.")
+        _logger.error(f"Access denied terminating PID {pid}. Admin privileges required.")
         return False
     except Exception as e:
-        logger.error(f"Unexpected error terminating process: {e}")
+        _logger.error(f"Unexpected error terminating process: {e}")
         return False

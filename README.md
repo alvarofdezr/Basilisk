@@ -260,11 +260,8 @@ uv run python tests/test_flow.py
 ### Linting & Type Checking
 
 ```bash
-# Syntax errors and undefined names (most critical)
-uv run flake8 basilisk --count --select=E9,F63,F7,F82 --show-source
-
-# Full lint
-uv run flake8 basilisk --count --exit-zero --max-line-length=127
+# Lint (replaces flake8)
+uv run ruff check basilisk
 
 # Type checking
 uv run mypy basilisk

@@ -1,5 +1,5 @@
 """
-Audit Scanner Module - System Compliance Assessment
+Audit Scanner Module - System Compliance Assessment (Windows only)
 
 Evaluates Windows security posture through registry analysis, process enumeration,
 and firewall configuration inspection. Generates compliance reports for detection
@@ -88,4 +88,5 @@ class AuditScanner:
             ),
             scan_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
-        return audit.dict()
+
+        return audit.model_dump()

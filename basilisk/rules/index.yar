@@ -1,38 +1,132 @@
-/* basilisk/rules/index.yar - Base de Firmas v1.0 */
+"""
+Threat Intelligence Module — VirusTotal hash reputation lookup.
 
-rule EICAR_Test_File {
-    meta:
-        description = "Test File (EICAR Standard)"
-        author = "basilisk EDR"
-        severity = "CRITICAL"
-    strings:
-        // Detecta la cadena EICAR estándar ignorando mayúsculas/minúsculas
-        $s1 = "EICAR-STANDARD-ANTIVIRUS-TEST-FILE" ascii wide nocase
-    condition:
-        $s1
-}
+Queries file hashes against VirusTotal API v3. Results are cached locally
+with a TTL (default 1 hour) and a max size (default 1000 entries, LRU eviction)
+to prevent unbounded memory growth during long-running directory scans.
+"""
 
-rule Suspicious_WebShell_PHP {
-    meta:
-        description = "Possible PHP Webshell"
-        author = "basilisk EDR"
-        severity = "CRITICAL"
-    strings:
-        $s1 = "shell_exec" nocase
-        $s2 = "base64_decode" nocase
-        $s3 = "$_POST" nocase
-    condition:
-        $s1 and $s2 and $s3
-}
+import time
+import requests
+from typing import Optional, Dict, Any
+from collections import OrderedDict
 
-rule Mimikatz_Memory_Pattern {
-    meta:
-        description = "Mimikatz Credential Dumper Artifacts"
-        author = "basilisk EDR"
-        severity = "CRITICAL"
-    strings:
-        $s1 = "gentilkiwi" wide ascii nocase
-        $s2 = "sekurlsa" wide ascii nocase
-    condition:
-        any of them
-}
+
+_DEFAULT_TTL = 3600       # seconds — results older than this are re-queried
+_DEFAULT_MAX_SIZE = 1000  # max cached hashes before LRU eviction
+
+
+class _CacheEntry:
+    __slots__ = ("result", "expires_at")
+
+    def __init__(self, result: Dict[str, Any], ttl: int):
+        self.result = result
+        self.expires_at = time.time() + ttl
+
+
+class ThreatIntel:
+    """
+    VirusTotal API v3 integration with TTL-bounded LRU cache.
+
+    Caches results locally to reduce API quota usage. Evicts entries
+    older than `cache_ttl` seconds and caps the cache at `max_cache_size`
+    entries using LRU eviction.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        cache_ttl: int = _DEFAULT_TTL,
+        max_cache_size: int = _DEFAULT_MAX_SIZE,
+    ):
+        self.api_key = api_key
+        self.base_url = "https://www.virustotal.com/api/v3/files/"
+        self._cache: OrderedDict[str, _CacheEntry] = OrderedDict()
+        self._cache_ttl = cache_ttl
+        self._max_cache_size = max_cache_size
+
+    def _get_cached(self, file_hash: str) -> Optional[Dict[str, Any]]:
+        """Return cached result if present and not expired, else None."""
+        entry = self._cache.get(file_hash)
+        if entry is None:
+            return None
+        if time.time() > entry.expires_at:
+            del self._cache[file_hash]
+            return None
+        self._cache.move_to_end(file_hash)
+        return entry.result
+
+    def _set_cached(self, file_hash: str, result: Dict[str, Any]) -> None:
+        """Insert result into cache, evicting oldest entry if at capacity."""
+        if file_hash in self._cache:
+            self._cache.move_to_end(file_hash)
+        self._cache[file_hash] = _CacheEntry(result, self._cache_ttl)
+        if len(self._cache) > self._max_cache_size:
+            self._cache.popitem(last=False)
+
+    def check_hash(self, file_hash: str) -> Optional[Dict[str, Any]]:
+        """
+        Query file hash against VirusTotal malware database.
+
+        Returns a cached result if still fresh. Evicts stale entries
+        automatically on access.
+
+        Args:
+            file_hash: MD5, SHA-1, or SHA-256 hash of the target file.
+
+        Returns:
+            Dict with keys:
+                - malicious: count of AV engines detecting as malicious
+                - total: total AV engines in the scan
+                - scan_date: epoch timestamp of last VT analysis
+                - status: "UNKNOWN_HASH" if not found in VirusTotal
+            None on API error or when api_key is empty.
+        """
+        if not self.api_key:
+            return None
+
+        cached = self._get_cached(file_hash)
+        if cached is not None:
+            return cached
+
+        headers = {"x-apikey": self.api_key}
+        try:
+            response = requests.get(
+                f"{self.base_url}{file_hash}",
+                headers=headers,
+                timeout=5,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                stats = (
+                    data.get("data", {})
+                    .get("attributes", {})
+                    .get("last_analysis_stats", {})
+                )
+                result: Dict[str, Any] = {
+                    "malicious": stats.get("malicious", 0),
+                    "total": sum(stats.values()),
+                    "scan_date": time.time(),
+                }
+                self._set_cached(file_hash, result)
+                return result
+
+            if response.status_code == 404:
+                not_found: Dict[str, Any] = {
+                    "malicious": 0,
+                    "total": 0,
+                    "status": "UNKNOWN_HASH",
+                }
+                self._set_cached(file_hash, not_found)
+                return not_found
+
+        except Exception: #nosec B110
+            pass
+
+        return None
+
+    @property
+    def cache_size(self) -> int:
+        """Current number of entries in the cache."""
+        return len(self._cache)

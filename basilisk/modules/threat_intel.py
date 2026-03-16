@@ -1,10 +1,9 @@
 """
 Threat Intelligence Module — VirusTotal hash reputation lookup.
 
-Changes vs original:
-  - Cache entries now have a TTL (default 1 hour).
-  - Cache has a max size (default 1000 entries) with LRU-style eviction
-    so it cannot grow unbounded during long-running scans.
+Queries file hashes against VirusTotal API v3. Results are cached locally
+with a TTL (default 1 hour) and a max size (default 1000 entries, LRU eviction)
+to prevent unbounded memory growth during long-running directory scans.
 """
 
 import time
@@ -29,10 +28,9 @@ class ThreatIntel:
     """
     VirusTotal API v3 integration with TTL-bounded LRU cache.
 
-    The original implementation stored results in a plain dict with no
-    expiry or size limit. A large directory scan could fill RAM over time.
-    This version evicts entries older than `cache_ttl` seconds and caps
-    the cache at `max_cache_size` entries.
+    Caches results locally to reduce API quota usage. Evicts entries
+    older than `cache_ttl` seconds and caps the cache at `max_cache_size`
+    entries using LRU eviction.
     """
 
     def __init__(
@@ -47,8 +45,6 @@ class ThreatIntel:
         self._cache_ttl = cache_ttl
         self._max_cache_size = max_cache_size
 
-    # ── Cache helpers ─────────────────────────────────────────────────────────
-
     def _get_cached(self, file_hash: str) -> Optional[Dict[str, Any]]:
         """Return cached result if present and not expired, else None."""
         entry = self._cache.get(file_hash)
@@ -57,7 +53,6 @@ class ThreatIntel:
         if time.time() > entry.expires_at:
             del self._cache[file_hash]
             return None
-        # Move to end (LRU touch)
         self._cache.move_to_end(file_hash)
         return entry.result
 
@@ -67,28 +62,25 @@ class ThreatIntel:
             self._cache.move_to_end(file_hash)
         self._cache[file_hash] = _CacheEntry(result, self._cache_ttl)
         if len(self._cache) > self._max_cache_size:
-            # Evict least-recently-used entry
             self._cache.popitem(last=False)
-
-    # ── Public API ────────────────────────────────────────────────────────────
 
     def check_hash(self, file_hash: str) -> Optional[Dict[str, Any]]:
         """
         Query file hash against VirusTotal malware database.
 
-        Returns cached result if fresh (< TTL seconds old).
-        Evicts stale entries automatically.
+        Returns a cached result if still fresh. Evicts stale entries
+        automatically on access.
 
         Args:
-            file_hash: MD5, SHA-1, or SHA-256 hash of target file.
+            file_hash: MD5, SHA-1, or SHA-256 hash of the target file.
 
         Returns:
             Dict with keys:
                 - malicious: count of AV engines detecting as malicious
-                - total: total AV engines in scan
+                - total: total AV engines in the scan
                 - scan_date: epoch timestamp of last VT analysis
-                - status: "UNKNOWN_HASH" if not in VirusTotal
-            None on API error or missing API key.
+                - status: "UNKNOWN_HASH" if not found in VirusTotal
+            None on API error or when api_key is empty.
         """
         if not self.api_key:
             return None
@@ -136,5 +128,5 @@ class ThreatIntel:
 
     @property
     def cache_size(self) -> int:
-        """Current number of entries in the cache (for monitoring/tests)."""
+        """Current number of entries in the cache."""
         return len(self._cache)
