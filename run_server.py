@@ -1,29 +1,13 @@
 """
 Basilisk C2 Server Entry Point
-Initializes database, generates SSL certificates, and starts HTTPS server.
+Delegates to basilisk.server.server.main() — single source of truth.
 """
-import os
 import sys
-import uvicorn
+import os
 
 sys.path.insert(0, os.getcwd())
 
-from basilisk.server.database import init_db
-from basilisk.utils.cert_manager import CertManager
+from basilisk.server.server import main
 
 if __name__ == "__main__":
-    print("🚀 Starting Basilisk C2 Server...")
-
-    init_db()
-
-    cert_mgr = CertManager(cert_dir="certs")
-    cert, key = cert_mgr.ensure_certificates()
-
-    uvicorn.run(
-        "basilisk.server.server:app",
-        host="0.0.0.0",
-        port=8443,
-        ssl_keyfile=key,
-        ssl_certfile=cert,
-        reload=False
-    )
+    main()

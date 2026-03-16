@@ -1,17 +1,13 @@
 """
 Basilisk Agent Entry Point
-Initializes and starts the endpoint agent with graceful shutdown.
+Delegates to basilisk.agent.engine.main() — single source of truth.
 """
 import sys
 import os
 
 sys.path.insert(0, os.getcwd())
 
-from basilisk.agent.engine import BasiliskAgent
+from basilisk.agent.engine import main
 
 if __name__ == "__main__":
-    try:
-        agent = BasiliskAgent()
-        agent.start()
-    except KeyboardInterrupt:
-        print("\n🛑 Agent stopped by user.")
+    main()

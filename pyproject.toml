@@ -36,7 +36,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Windows-only — install with: uv sync --extra windows
 windows = [
     "pywin32==311",
 ]
@@ -52,7 +51,7 @@ basilisk-server = "basilisk.server.server:main"
 basilisk-agent  = "basilisk.agent.engine:main"
 
 # ============================================================
-# uv — dev dependency group (single source of truth)
+# uv — dev dependency group
 # ============================================================
 [dependency-groups]
 dev = [
@@ -98,7 +97,9 @@ exclude                = ["venv", ".venv", "build", "dist"]
 
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]
-skips        = ["B104"]
+# B104 (hardcoded bind all interfaces) is suppressed per-line with #nosec
+# where it is a legitimate string comparison, not an actual bind call.
+# Do NOT add global skips here — that would hide real issues.
 
 [tool.ruff]
 line-length    = 127

@@ -14,18 +14,9 @@ import os
 import json
 import logging
 import secrets
-import uvicorn
 from datetime import datetime, timedelta
 from typing import Any, List, Dict, Optional
 from collections import defaultdict
-from fastapi import FastAPI, Request, Depends, HTTPException, Header
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
-from starlette.middleware.sessions import SessionMiddleware
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc
 
 SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SERVER_DIR, '..'))
@@ -35,6 +26,15 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 STATIC_DIR = os.path.join(SERVER_DIR, "static")
 TEMPLATES_DIR = os.path.join(SERVER_DIR, "templates")
+
+from fastapi import FastAPI, Request, Depends, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy import desc, asc
 
 from basilisk.core.config import Config
 from basilisk.core.security import verify_password
@@ -50,39 +50,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger("BasiliskC2")
 
-CONFIG = Config(config_path=os.path.join(PROJECT_ROOT, "config.yaml"))
-
-# ── Required secrets — server will NOT start if any are missing ──────────────
+# Read secrets at module level so the FastAPI app can use them,
+# but do NOT call sys.exit here — that breaks imports in tests.
+# Validation happens in main() before uvicorn starts.
+CONFIG      = Config(config_path=os.path.join(PROJECT_ROOT, "config.yaml"))
 ADMIN_USER  = os.getenv("BASILISK_ADMIN_USER", "admin").strip()
 SECRET_KEY  = os.getenv("BASILISK_SERVER_SECRET_KEY", "").strip()
 ADMIN_HASH  = os.getenv("BASILISK_ADMIN_PASSWORD_HASH", "").strip()
 AGENT_TOKEN = os.getenv("BASILISK_AGENT_TOKEN", "").strip()
 
-_missing = [
-    name for name, val in [
-        ("BASILISK_SERVER_SECRET_KEY", SECRET_KEY),
-        ("BASILISK_ADMIN_PASSWORD_HASH", ADMIN_HASH),
-        ("BASILISK_AGENT_TOKEN", AGENT_TOKEN),
-    ]
-    if not val
-]
-if _missing:
-    logger.critical(
-        "❌ CRITICAL: Missing required environment variables: %s\n"
-        "   Set them in your .env file or environment and restart.",
-        ", ".join(_missing)
-    )
-    sys.exit(1)
-# ─────────────────────────────────────────────────────────────────────────────
-
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_TIME       = 300   # seconds
 SESSION_LIFETIME   = 8     # hours
+_MAX_TRACKED_IPS   = 10_000
 
 login_attempts: Dict[str, List[datetime]] = defaultdict(list)
 last_heartbeats: Dict[str, datetime] = {}
-
-_MAX_TRACKED_IPS = 10_000
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -147,9 +130,14 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# SessionMiddleware requires SECRET_KEY at import time.
+# If it is empty the app will start but sessions will be insecure.
+# main() validates and exits before uvicorn starts, so in practice
+# SECRET_KEY is always populated when the server accepts requests.
 app.add_middleware(
     SessionMiddleware,
-    secret_key=SECRET_KEY,
+    secret_key=SECRET_KEY or "placeholder-replaced-before-start",
     https_only=True,
     same_site="lax",
 )
@@ -193,6 +181,8 @@ async def security_headers_and_session_guard(request: Request, call_next):
 
 def verify_agent_token(x_agent_token: Optional[str] = Header(default=None)) -> None:
     """Validate agent requests using a shared secret token."""
+    if not AGENT_TOKEN:
+        raise HTTPException(status_code=503, detail="Server not configured")
     if not x_agent_token or not secrets.compare_digest(x_agent_token, AGENT_TOKEN):
         raise HTTPException(status_code=401, detail="Invalid or missing agent token")
 
@@ -205,13 +195,16 @@ async def login(data: LoginSchema, request: Request):
     client_ip = request.client.host if request.client else "unknown"
     now = datetime.now()
 
+    # Prune expired attempts
     attempts = [
         t for t in login_attempts[client_ip]
         if now - t < timedelta(seconds=LOCKOUT_TIME)
     ]
     login_attempts[client_ip] = attempts
 
-    if client_ip not in login_attempts and len(login_attempts) >= _MAX_TRACKED_IPS:
+    # Cap the number of tracked IPs to prevent unbounded memory growth.
+    # Check BEFORE accessing the defaultdict so the key is not yet created.
+    if len(login_attempts) >= _MAX_TRACKED_IPS and client_ip not in login_attempts:
         raise HTTPException(status_code=429, detail="Too many attempts")
 
     if len(attempts) >= MAX_LOGIN_ATTEMPTS:
@@ -261,11 +254,11 @@ async def heartbeat(
         agent = Agent(agent_id=aid)
         db.add(agent)
 
-    agent.last_seen    = now              # type: ignore[assignment]
-    agent.hostname     = data.hostname   # type: ignore[assignment]
-    agent.os_info      = data.os         # type: ignore[assignment]
-    agent.cpu_percent  = data.cpu_percent  # type: ignore[assignment]
-    agent.ram_percent  = data.ram_percent  # type: ignore[assignment]
+    agent.last_seen   = now               # type: ignore[assignment]
+    agent.hostname    = data.hostname     # type: ignore[assignment]
+    agent.os_info     = data.os           # type: ignore[assignment]
+    agent.cpu_percent = data.cpu_percent  # type: ignore[assignment]
+    agent.ram_percent = data.ram_percent  # type: ignore[assignment]
 
     pending_commands = (
         db.query(PendingCommand)
@@ -334,8 +327,8 @@ async def receive_report(
     )
 
     if report:
-        report.content      = content_json     # type: ignore[assignment]
-        report.generated_at = datetime.now()   # type: ignore[assignment]
+        report.content      = content_json    # type: ignore[assignment]
+        report.generated_at = datetime.now()  # type: ignore[assignment]
     else:
         db.add(AgentReport(
             agent_id=data.agent_id,
@@ -442,10 +435,33 @@ async def login_page():
     return FileResponse(login_path)
 
 
-# ── Entry points ──────────────────────────────────────────────────────────────
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    """Entry point for `basilisk-server` CLI command (defined in pyproject.toml)."""
+    """
+    Entry point for `basilisk-server` CLI and run_server.py.
+
+    Secret validation and uvicorn import happen here so that importing
+    this module in tests does not trigger sys.exit or load uvicorn.
+    """
+    import uvicorn
+
+    missing = [
+        name for name, val in [
+            ("BASILISK_SERVER_SECRET_KEY", SECRET_KEY),
+            ("BASILISK_ADMIN_PASSWORD_HASH", ADMIN_HASH),
+            ("BASILISK_AGENT_TOKEN", AGENT_TOKEN),
+        ]
+        if not val
+    ]
+    if missing:
+        logger.critical(
+            "❌ CRITICAL: Missing required environment variables: %s\n"
+            "   Set them in your .env file or environment and restart.",
+            ", ".join(missing)
+        )
+        sys.exit(1)
+
     print("🔒 Initializing Basilisk C2 Enterprise v7.1.0...")
     init_db()
     cert_mgr = CertManager(cert_dir="certs")

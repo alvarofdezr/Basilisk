@@ -1,4 +1,7 @@
-# basilisk/core/config.py
+"""
+Basilisk Configuration Loader
+Loads settings from environment variables (priority 1) and config.yaml (priority 2).
+"""
 from typing import Any, Dict, List
 import yaml
 import os
@@ -13,16 +16,13 @@ class Config:
     """
 
     def __init__(self, config_path: str = "config.yaml") -> None:
-        # Calcular rutas absolutas para garantizar la carga del .env
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
         env_path = os.path.join(project_root, '.env')
 
-        # Cargar variables de entorno silenciosamente
         if os.path.exists(env_path):
             load_dotenv(dotenv_path=env_path, override=True)
         else:
-            # Fallback: Intentar cargar desde el directorio de trabajo actual
             load_dotenv(override=True)
 
         self.config_path = config_path
@@ -57,7 +57,6 @@ class Config:
         default = ["chrome.exe", "firefox.exe", "msedge.exe", "svchost.exe", "python.exe"]
         return self.data.get("network", {}).get("whitelist", default)
 
-    # --- SECRETOS ---
     @property
     def admin_hash(self) -> str:
         return os.getenv("BASILISK_ADMIN_PASSWORD_HASH", "")

@@ -5,9 +5,8 @@
 # ============================================================
 
 system:
-  # FIX: version was "6.6.0" while codebase is 7.1.0
   version: "7.1.0"
-  log_level: "INFO"
+  log_level: "INFO"   # DEBUG | INFO | WARNING | ERROR
 
 monitoring:
   directories:
@@ -30,6 +29,7 @@ network:
 #
 #   BASILISK_ADMIN_PASSWORD_HASH  — Argon2id hash of admin password
 #   BASILISK_SERVER_SECRET_KEY    — Random 32+ char session key
+#   BASILISK_AGENT_TOKEN          — Shared token for agent authentication
 #   BASILISK_C2_URL               — https://<server-ip>:8443
 #   BASILISK_VIRUSTOTAL_API_KEY   — VirusTotal API v3 key (optional)
 #   BASILISK_TELEGRAM_TOKEN       — Telegram bot token (optional)
