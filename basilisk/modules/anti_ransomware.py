@@ -23,7 +23,7 @@ CANARY_FILES = {
 class RansomwareHandler(FileSystemEventHandler):
     """
     Filesystem event handler for canary file monitoring.
-    
+
     Triggers alerts when decoy files are accessed, modified, or deleted,
     indicating potential encryption or exfiltration attack patterns.
     """
@@ -31,7 +31,7 @@ class RansomwareHandler(FileSystemEventHandler):
     def __init__(self, callback_func: Optional[Callable[[str], None]] = None):
         """
         Initialize filesystem event handler.
-        
+
         Args:
             callback_func: Callable invoked on threat detection with alert message
         """
@@ -40,7 +40,7 @@ class RansomwareHandler(FileSystemEventHandler):
     def on_modified(self, event):
         """
         Handle file modification events.
-        
+
         Triggers alert for any modification of monitored canary files.
         """
         self._trigger_alarm(event, "MODIFIED")
@@ -48,7 +48,7 @@ class RansomwareHandler(FileSystemEventHandler):
     def on_deleted(self, event):
         """
         Handle file deletion events.
-        
+
         Triggers alert when canary files are deleted or renamed.
         """
         self._trigger_alarm(event, "DELETED")
@@ -56,7 +56,7 @@ class RansomwareHandler(FileSystemEventHandler):
     def _trigger_alarm(self, event, action_type):
         """
         Generate and dispatch threat alert.
-        
+
         Args:
             event: Filesystem event object
             action_type: Type of filesystem operation detected
@@ -72,7 +72,7 @@ class RansomwareHandler(FileSystemEventHandler):
 class CanarySentry:
     """
     Ransomware detection system using decoy file monitoring.
-    
+
     Deploys a hidden directory with fake sensitive files (honey-pot).
     Monitors for unauthorized access, modification, or encryption attempts.
     Provides early-warning detection without impacting user systems.
@@ -81,7 +81,7 @@ class CanarySentry:
     def __init__(self, on_detection_callback: Optional[Callable] = None):
         """
         Initialize canary sentry system.
-        
+
         Args:
             on_detection_callback: Function called when threat detected
         """
@@ -93,7 +93,7 @@ class CanarySentry:
     def deploy_trap(self) -> None:
         """
         Initialize canary trap infrastructure.
-        
+
         Creates hidden directory and deploys decoy files.
         Implements self-healing to recreate deleted canaries.
         """
@@ -114,7 +114,7 @@ class CanarySentry:
     def start(self) -> None:
         """
         Activate ransomware monitoring.
-        
+
         Deploys trap and begins filesystem observation.
         """
         self.deploy_trap()
@@ -125,7 +125,7 @@ class CanarySentry:
     def stop(self) -> None:
         """
         Deactivate ransomware monitoring.
-        
+
         Gracefully shutdown filesystem observer.
         """
         self.observer.stop()

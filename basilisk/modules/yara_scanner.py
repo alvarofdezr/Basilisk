@@ -16,10 +16,10 @@ MAX_SCAN_SIZE = 100 * 1024 * 1024
 
 class YaraScanner:
     """YARA signature engine for filesystem malware scanning.
-    
+
     Loads and compiles YARA rules from index.yar. Provides file scanning
     with results mapping rule name to metadata (severity, description).
-    
+
     Features:
     - Lazy rule compilation with error handling
     - 10-second match timeout per file (prevents hangs on large files)
@@ -29,11 +29,11 @@ class YaraScanner:
 
     def __init__(self, rules_path="basilisk/rules/index.yar"):
         """Initialize YARA scanner and compile rules from file.
-        
+
         Attempts to load and compile rules at startup. Logs success/failure
         with rule count. If rules fail to load, scanner returns empty results
         gracefully without crashing agent.
-        
+
         Args:
             rules_path: Path to YARA rules file (.yar or .yara format)
         """
@@ -44,7 +44,7 @@ class YaraScanner:
 
     def _compile_rules(self) -> None:
         """Compile YARA rules from disk into memory.
-        
+
         Validates file existence and catches YARA syntax errors gracefully.
         Logs rule count on success or error details on failure.
         """
@@ -60,14 +60,14 @@ class YaraScanner:
 
     def scan_file(self, filepath: str) -> List[Dict[str, Any]]:
         """Scan single file against compiled YARA rules.
-        
+
         Checks file existence, applies size filter, and executes match
         with 10-second timeout. Extracts match metadata (rule name,
         severity, description) for reporting.
-        
+
         Args:
             filepath: Absolute path to file to scan
-            
+
         Returns:
             List[Dict]: Array of matches, each containing:
                 - rule: YARA rule name that matched

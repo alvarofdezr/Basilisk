@@ -23,7 +23,7 @@ from basilisk.utils.logger import Logger
 
 class PROCESS_BASIC_INFORMATION(ctypes.Structure):
     """Windows Process Information Structure for NtQueryInformationProcess.
-    
+
     PeBBaseAddress: Pointer to Process Environment Block (PEB) in user mode
     UniqueProcessId: Process ID
     Reserved fields: Kernel-level metadata
@@ -39,21 +39,21 @@ class PROCESS_BASIC_INFORMATION(ctypes.Structure):
 
 class MemoryScanner:
     """Detect process hollowing via PE header signature inspection.
-    
+
     Windows-only capability using kernel32.dll and ntdll.dll for low-level
     process memory reading. Gracefully degrades to disabled on non-Windows.
-    
+
     Core Functions:
     - NtQueryInformationProcess: Get PEB address (ntdll)
     - ReadProcessMemory: Read bytes from another process (kernel32)
     - PEB offset +0x10: Contains ImageBase address of loaded module
-    
+
     Returns detection status with technique name for MITRE reporting.
     """
 
     def __init__(self):
         """Initialize memory scanner and load Windows API handles.
-        
+
         Attempts to load kernel32 and ntdll DLLs. Gracefully disables
         on non-Windows platforms or if DLLs unavailable.
         """
@@ -74,15 +74,15 @@ class MemoryScanner:
 
     def _read_memory(self, process_handle, address, size):
         """Read bytes from another process via kernel32.ReadProcessMemory.
-        
+
         Cross-process memory read with size validation. Returns None
         if read fails (access denied, invalid address, etc).
-        
+
         Args:
             process_handle: Valid handle from OpenProcess (must have PROCESS_VM_READ)
             address: Target address in remote process
             size: Number of bytes to read
-            
+
         Returns:
             bytes: Raw memory data or None if read failed
         """
@@ -99,7 +99,7 @@ class MemoryScanner:
 
     def detect_hollowing(self, pid: int) -> Dict[str, Any]:
         """Detect process hollowing by inspecting PE header signature.
-        
+
         Process:
         1. Open process with QUERY_INFORMATION | VM_READ access
         2. Query NtQueryInformationProcess to get PEB address
@@ -107,10 +107,10 @@ class MemoryScanner:
         4. Read first 512 bytes from ImageBase (PE header)
         5. Check for "MZ" magic bytes (0x4D5A)
         6. Missing/modified header indicates hollowing
-        
+
         Args:
             pid: Process ID to inspect
-            
+
         Returns:
             Dict[str, Any]: Detection result with fields:
                 - suspicious: True if hollowing detected

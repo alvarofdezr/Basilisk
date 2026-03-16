@@ -22,20 +22,20 @@ SMART_CHUNK_SIZE = 1 * 1024 * 1024
 
 class FileIntegrityMonitor:
     """Monitor filesystem for unauthorized file modifications.
-    
+
     Maintains baseline hashes of monitored directories. On each scan,
     compares current hashes against baseline to identify:
     - Modified files: Content changes detected via hash mismatch
     - New files: Not in baseline (new additions to monitored path)
     - Deleted files: In baseline but missing on disk
-    
+
     Smart caching uses mtime/size to skip unchanged files, reducing CPU
     impact on large directories.
     """
 
     def __init__(self, db_manager: DatabaseManager):
         """Initialize file integrity monitor with database backend.
-        
+
         Args:
             db_manager: DatabaseManager instance for baseline storage
         """
@@ -44,7 +44,7 @@ class FileIntegrityMonitor:
 
     def _log(self, level: str, msg: str) -> None:
         """Route logging messages through Logger with level selector.
-        
+
         Args:
             level: Log level (info, warning, success, error)
             msg: Message text to log
@@ -60,17 +60,17 @@ class FileIntegrityMonitor:
 
     def calculate_hash(self, file_path: str) -> Optional[str]:
         """Compute SHA256 hash using smart caching for large files.
-        
+
         Large File Strategy:
         - Files >50MB: Hash first 1MB + last 1MB + file size
         - Catches header/footer modifications (virus injection)
         - Avoids hashing entire large archives/disk images
-        
+
         Small files hashed completely in 4KB chunks.
-        
+
         Args:
             file_path: Absolute path to file
-            
+
         Returns:
             str: SHA256 hexdigest or None if file missing/access denied
         """
@@ -97,13 +97,13 @@ class FileIntegrityMonitor:
 
     def _get_db_files_in_dir(self, directory: str) -> Set[str]:
         """Retrieve all known baseline files in directory from database.
-        
+
         Queries files_baseline table for paths matching directory using
         LIKE wildcard with both forward and backward slashes.
-        
+
         Args:
             directory: Directory path to retrieve baseline for
-            
+
         Returns:
             Set[str]: Normalized paths of all known files in directory
         """
@@ -122,18 +122,18 @@ class FileIntegrityMonitor:
 
     def scan_directory(self, directory_path: str, mode: str = "monitor") -> None:
         """Scan directory for file changes using baseline comparison.
-        
+
         Two modes:
         - baseline: Create initial baseline (hash all files, store in DB)
         - monitor: Compare current hashes vs baseline, alert on changes
-        
+
         Filters out non-essential files (.db, .log, .tmp, .pyc, .git).
-        
+
         Detection Logic:
         - Modified: mtime changed AND hash mismatch
         - New: Path not in baseline
         - Deleted: Path in baseline but missing on disk
-        
+
         Args:
             directory_path: Root directory to scan (recursive)
             mode: Either "baseline" (initialize) or "monitor" (detect changes)

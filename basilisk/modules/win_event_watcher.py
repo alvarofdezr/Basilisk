@@ -21,11 +21,11 @@ except ImportError:
 
 class WindowsEventWatcher:
     """Monitor Windows Security event log for logon failures.
-    
+
     Targets EventID 4625 specifically for failed authentication attempts.
     Maintains local handle to event log and reads backwards (newest first)
     using sequential read mode. Gracefully disables if win32evtlog unavailable.
-    
+
     Data Points Extracted:
     - StringInserts[5]: Username attempting login
     - StringInserts[19]: Source IP address of authentication attempt
@@ -33,10 +33,10 @@ class WindowsEventWatcher:
 
     def __init__(self, db_manager, notifier=None):
         """Initialize Windows event watcher with event log handles.
-        
+
         Determines read flags based on win32evtlog availability. Sets up
         handlers for local Security log access.
-        
+
         Args:
             db_manager: DatabaseManager for event logging
             notifier: Optional Notifier for alert dispatch
@@ -54,11 +54,11 @@ class WindowsEventWatcher:
 
     def check_security_logs(self) -> None:
         """Poll Security event log for recent failed logon attempts.
-        
+
         Reads event log handle in backwards sequential mode (oldest to newest).
         Filters for EventID 4625 and timestamps within last 15 seconds to avoid
         processing stale events between heartbeat cycles.
-        
+
         Calls _trigger_alert for each recent failure, which extracts user/IP.
         """
         if not win32evtlog:
@@ -81,14 +81,14 @@ class WindowsEventWatcher:
 
     def _trigger_alert(self, event) -> None:
         """Extract user and source IP from failed logon event.
-        
+
         Parses event.StringInserts array to extract relevant fields.
         Uses hardcoded indices which may vary by Windows version/language.
         Defaults to "Unknown" if field missing or array index out of bounds.
-        
+
         Alert formatted as multi-line message:
         "WINDOWS LOGON FAILURE.\nUser: <username>\nSource: <source_ip>"
-        
+
         Args:
             event: Win32EventLog event object with StringInserts array
         """

@@ -17,7 +17,7 @@ logger = Logger()
 class ProcessMonitor:
     """
     System process enumeration and threat analysis engine.
-    
+
     Continuously monitors running processes and evaluates risk based on
     execution path, process name, and system integration patterns.
     Detects anomalies including execution from temporary directories,
@@ -27,7 +27,7 @@ class ProcessMonitor:
     def __init__(self):
         """
         Initialize process monitor with threat detection baselines.
-        
+
         Configures suspicious execution paths and critical process
         naming patterns used for risk assessment.
         """
@@ -42,12 +42,12 @@ class ProcessMonitor:
     def scan_processes(self) -> List[dict]:
         """
         Enumerate all running processes with risk assessment.
-        
+
         Iterates system process list and assigns threat scores based on:
         - Execution path (temporary directories = suspicious)
         - Process name (critical OS processes monitored)
         - Resource consumption patterns
-        
+
         Returns:
             List[dict]: Sorted process list (highest CPU first) with risk metadata
         """

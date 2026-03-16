@@ -9,7 +9,7 @@ from typing import Dict
 def get_system_metrics() -> Dict[str, float]:
     """
     Capture current system resource utilization.
-    
+
     Returns:
         Dict with keys: 'cpu', 'ram', 'disk' (percentage values)
     """

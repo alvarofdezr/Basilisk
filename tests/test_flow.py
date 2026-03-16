@@ -128,7 +128,7 @@ def test_flow() -> bool:
             data = resp.json()
             count = len(data) if isinstance(data, list) else len(data.keys())
             if count == 0:
-                print(f"      ⚠  Sin datos — el agente puede no haber respondido aún.")
+                print("      ⚠  Sin datos — el agente puede no haber respondido aún.")
                 all_ok = False
             else:
                 first = data[0] if isinstance(data, list) else data

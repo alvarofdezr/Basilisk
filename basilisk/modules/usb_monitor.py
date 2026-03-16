@@ -19,11 +19,11 @@ from basilisk.utils.logger import Logger
 
 class USBMonitor:
     """Monitor system for USB device insertion and removal.
-    
+
     Maintains current state of logical drives. On each check cycle,
     compares previous state with current to identify newly connected
     or disconnected removable media.
-    
+
     Supports:
     - Windows: Uses win32api.GetLogicalDrives() bitmask enumeration
     - Linux: Reads /media directory for mounted external storage
@@ -31,10 +31,10 @@ class USBMonitor:
 
     def __init__(self, db_manager, c2_client=None, notifier=None):
         """Initialize USB monitor with current drive state baseline.
-        
+
         Enumerates current logical drives and stores as baseline for
         future delta comparison. Logs detected drives at startup.
-        
+
         Args:
             db_manager: DatabaseManager for event logging
             c2_client: Optional C2Client for server-side alerts
@@ -50,10 +50,10 @@ class USBMonitor:
 
     def _get_active_drives(self) -> Set[str]:
         """Enumerate logical drives on current system.
-        
+
         Windows: Uses bitmask iteration over 26 drive letters
         Linux: Enumerates /media directory for mounted volumes
-        
+
         Returns:
             Set[str]: Drive letters or mount paths (e.g., {"C:\\", "D:\\", "E:\\"})
         """
@@ -75,11 +75,11 @@ class USBMonitor:
 
     def check_usb_changes(self) -> None:
         """Compare current drive state with baseline to detect changes.
-        
+
         Identifies newly inserted drives and removed drives by set difference.
         Logs all changes to database and dispatches alerts via C2 and
         optional notifier services.
-        
+
         Alerts trigger on:
         - New drive added (USB inserted): WARNING severity
         - Drive removed (USB ejected): INFO severity

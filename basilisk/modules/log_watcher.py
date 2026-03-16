@@ -16,7 +16,7 @@ from basilisk.utils.logger import Logger
 class LogWatcher:
     """
     Monitor and analyze system log files for security threats.
-    
+
     Uses configurable regex patterns to detect intrusion attempts, failed
     authentication, and other security-relevant events. Maintains file position
     to avoid re-processing identical logs on subsequent scans.
@@ -25,7 +25,7 @@ class LogWatcher:
     def __init__(self, db_manager: DatabaseManager, log_path: str = "server_logs.txt", notifier=None):
         """
         Initialize the LogWatcher with database and log file configuration.
-        
+
         Args:
             db_manager (DatabaseManager): Database instance for logging security events
             log_path (str): Absolute or relative path to the monitored log file
@@ -45,7 +45,7 @@ class LogWatcher:
     def monitor_changes(self) -> None:
         """
         Scan log file for new entries since last position.
-        
+
         Efficiently reads only newly appended lines by maintaining file position.
         Processes each line through analysis pipeline for threat detection.
         """
@@ -63,10 +63,10 @@ class LogWatcher:
     def _analyze_line(self, line: str) -> None:
         """
         Analyze individual log line for security threats.
-        
+
         Cross-references log content against known intrusion patterns.
         Triggers alerting and database logging on match detection.
-        
+
         Args:
             line (str): Single log file entry to analyze
         """

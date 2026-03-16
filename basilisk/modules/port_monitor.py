@@ -32,7 +32,7 @@ KNOWN_RISKS = {
 class PortMonitor:
     """
     Network port enumeration and security assessment.
-    
+
     Monitors listening TCP/UDP ports, identifies associated processes,
     and evaluates risk based on protocol vulnerability and network exposure.
     Flags dangerous service configurations and exposed administrative endpoints.
@@ -41,7 +41,7 @@ class PortMonitor:
     def __init__(self, db_manager, c2_client=None, notifier=None):
         """
         Initialize port monitor.
-        
+
         Args:
             db_manager: Database instance for event logging
             c2_client: Command and control client for alert delivery
@@ -55,11 +55,11 @@ class PortMonitor:
     def get_full_report(self) -> List[Dict]:
         """
         Generate comprehensive port audit report.
-        
+
         Enumerates all listening ports, identifies owning processes,
         evaluates security risk, and assesses network exposure.
         Returns results sorted by threat severity (CRITICAL → INFO).
-        
+
         Returns:
             List[Dict]: Port inventory with risk assessment and process metadata
         """

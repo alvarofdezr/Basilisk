@@ -30,11 +30,11 @@ def generate_pdf(
 ) -> Tuple[bool, str]:
     """
     Generate formatted PDF report from security events.
-    
+
     Args:
         events: List of (timestamp, type, severity, message) tuples
         filename: Output file path
-        
+
     Returns:
         Tuple[bool, str]: (success_status, output_path_or_error)
     """

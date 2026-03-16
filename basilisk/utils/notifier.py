@@ -22,7 +22,7 @@ class TelegramNotifier:
     def send_alert(self, message: str) -> None:
         """
         Send formatted security alert to configured Telegram chat.
-        
+
         Args:
             message: Alert content (supports Markdown formatting)
         """

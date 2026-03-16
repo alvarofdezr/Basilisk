@@ -21,21 +21,21 @@ from basilisk.utils.logger import Logger
 
 class NetworkIsolator:
     """Firewall-based network containment for infected hosts.
-    
+
     Uses netsh (Windows Firewall CLI) to implement complete network
     isolation while preserving C2 communication channel. Rules are
     uniquely named with "Basilisk_Isolation" prefix for safe removal.
-    
+
     DNS Access:
     Allows UDP 53 to enable basic hostname resolution (for C2 callback).
     """
 
     def __init__(self, c2_url: str):
         """Initialize network isolator with C2 endpoint.
-        
+
         Parses C2 URL to determine safe IP address to whitelist during
         isolation. Stores rule naming prefix for rule enumeration.
-        
+
         Args:
             c2_url: C2 server URL (e.g., "https://192.168.1.100:8443")
         """
@@ -45,11 +45,11 @@ class NetworkIsolator:
 
     def _get_c2_ip(self) -> str:
         """Resolve C2 server IP address for firewall whitelist.
-        
+
         Parses hostname from URL and performs DNS lookup to get IP.
         Returns "127.0.0.1" for localhost references. Gracefully fails
         if DNS resolution fails.
-        
+
         Returns:
             str: IPv4 address of C2 server or empty string if resolution fails
         """
@@ -74,13 +74,13 @@ class NetworkIsolator:
 
     def _run_netsh(self, args: List[str]) -> bool:
         """Execute firewall rule command via netsh.
-        
+
         Constructs "netsh advfirewall firewall" command with provided
         arguments. Silences stdout/stderr and suppresses exceptions.
-        
+
         Args:
             args: List of netsh arguments after "advfirewall firewall" base
-            
+
         Returns:
             bool: True if command succeeded, False otherwise
         """
@@ -93,14 +93,14 @@ class NetworkIsolator:
 
     def isolate_host(self) -> bool:
         """Implement complete network isolation with C2 whitelist.
-        
+
         Execution Order:
         1. Restore any previous isolation rules
         2. Allow outbound TCP to C2 (command reception)
         3. Allow outbound UDP 53 (DNS resolution)
         4. Block all other outbound traffic
         5. Block all inbound traffic
-        
+
         Returns:
             bool: True if isolation successful, False if C2 IP unresolvable
         """
@@ -139,11 +139,11 @@ class NetworkIsolator:
 
     def restore_connection(self) -> bool:
         """Remove all Basilisk isolation firewall rules.
-        
+
         Deletes all rules prefixed with "Basilisk_Isolation" to restore
         normal network connectivity. Called before new isolation or during
         remediation.
-        
+
         Returns:
             bool: True if restoration commands executed
         """
