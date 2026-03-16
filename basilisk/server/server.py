@@ -3,19 +3,29 @@ Basilisk C2 Server v7.1.0
 Enterprise Command & Control with session management, rate limiting, and RBAC.
 
 SECURITY NOTES:
-  - BASILISK_ADMIN_PASSWORD_HASH and BASILISK_SERVER_SECRET_KEY are REQUIRED.
-    The server refuses to start if either is absent — no insecure fallbacks.
-  - Agent endpoints (/heartbeat, /alert, /report) require a shared API token
-    (BASILISK_AGENT_TOKEN) to prevent unauthenticated data injection.
+  - BASILISK_ADMIN_PASSWORD_HASH, BASILISK_SERVER_SECRET_KEY and
+    BASILISK_AGENT_TOKEN are REQUIRED. The server refuses to start if
+    any are absent — no insecure fallbacks.
+  - Agent endpoints (/heartbeat, /alert, /report) require a shared API
+    token (BASILISK_AGENT_TOKEN) to prevent unauthenticated data injection.
 """
 import sys
 import os
 import json
 import logging
 import secrets
+import uvicorn
 from datetime import datetime, timedelta
 from typing import Any, List, Dict, Optional
 from collections import defaultdict
+from fastapi import FastAPI, Request, Depends, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy import desc, asc
 
 SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SERVER_DIR, '..'))
@@ -25,16 +35,6 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 STATIC_DIR = os.path.join(SERVER_DIR, "static")
 TEMPLATES_DIR = os.path.join(SERVER_DIR, "templates")
-
-import uvicorn
-from fastapi import FastAPI, Request, Depends, HTTPException, Header
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
-from starlette.middleware.sessions import SessionMiddleware
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc
 
 from basilisk.core.config import Config
 from basilisk.core.security import verify_password
@@ -53,11 +53,9 @@ logger = logging.getLogger("BasiliskC2")
 CONFIG = Config(config_path=os.path.join(PROJECT_ROOT, "config.yaml"))
 
 # ── Required secrets — server will NOT start if any are missing ──────────────
-ADMIN_USER = os.getenv("BASILISK_ADMIN_USER", "admin").strip()
-SECRET_KEY = os.getenv("BASILISK_SERVER_SECRET_KEY", "").strip()
-ADMIN_HASH = os.getenv("BASILISK_ADMIN_PASSWORD_HASH", "").strip()
-# Shared token agents must send in the X-Agent-Token header.
-# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+ADMIN_USER  = os.getenv("BASILISK_ADMIN_USER", "admin").strip()
+SECRET_KEY  = os.getenv("BASILISK_SERVER_SECRET_KEY", "").strip()
+ADMIN_HASH  = os.getenv("BASILISK_ADMIN_PASSWORD_HASH", "").strip()
 AGENT_TOKEN = os.getenv("BASILISK_AGENT_TOKEN", "").strip()
 
 _missing = [
@@ -78,10 +76,13 @@ if _missing:
 # ─────────────────────────────────────────────────────────────────────────────
 
 MAX_LOGIN_ATTEMPTS = 5
-LOCKOUT_TIME = 300        # seconds
-SESSION_LIFETIME = 8      # hours
+LOCKOUT_TIME       = 300   # seconds
+SESSION_LIFETIME   = 8     # hours
+
 login_attempts: Dict[str, List[datetime]] = defaultdict(list)
-last_heartbeats: Dict[str, datetime] = defaultdict(lambda: datetime.min)
+last_heartbeats: Dict[str, datetime] = {}
+
+_MAX_TRACKED_IPS = 10_000
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -165,7 +166,6 @@ async def security_headers_and_session_guard(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
     public_routes = ["/login", "/favicon.ico", "/api/v1/auth/login"]
-    # Agent routes are authenticated via X-Agent-Token, not session cookies.
     agent_route_prefixes = ["/api/v1/heartbeat", "/api/v1/alert", "/api/v1/report"]
 
     if (
@@ -181,7 +181,6 @@ async def security_headers_and_session_guard(request: Request, call_next):
             return RedirectResponse("/login")
         return JSONResponse(status_code=403, content={"detail": "Unauthorized"})
 
-    # Enforce session expiry
     expires_at = request.session.get("expires_at")
     if expires_at and datetime.now().timestamp() > expires_at:
         request.session.clear()
@@ -193,11 +192,7 @@ async def security_headers_and_session_guard(request: Request, call_next):
 # ── Agent token dependency ────────────────────────────────────────────────────
 
 def verify_agent_token(x_agent_token: Optional[str] = Header(default=None)) -> None:
-    """
-    Validate agent requests using a shared secret token.
-    Agents must send the token in the X-Agent-Token HTTP header.
-    Raises HTTP 401 if missing or incorrect.
-    """
+    """Validate agent requests using a shared secret token."""
     if not x_agent_token or not secrets.compare_digest(x_agent_token, AGENT_TOKEN):
         raise HTTPException(status_code=401, detail="Invalid or missing agent token")
 
@@ -215,6 +210,9 @@ async def login(data: LoginSchema, request: Request):
         if now - t < timedelta(seconds=LOCKOUT_TIME)
     ]
     login_attempts[client_ip] = attempts
+
+    if client_ip not in login_attempts and len(login_attempts) >= _MAX_TRACKED_IPS:
+        raise HTTPException(status_code=429, detail="Too many attempts")
 
     if len(attempts) >= MAX_LOGIN_ATTEMPTS:
         logger.warning("🔒 Lockout triggered for IP: %s", client_ip)
@@ -253,7 +251,8 @@ async def heartbeat(
     aid = data.agent_id
     now = datetime.now()
 
-    if (now - last_heartbeats[aid]).total_seconds() < 1.0:
+    last = last_heartbeats.get(aid)
+    if last is not None and (now - last).total_seconds() < 1.0:
         return {"status": "throttled"}
     last_heartbeats[aid] = now
 
@@ -262,11 +261,11 @@ async def heartbeat(
         agent = Agent(agent_id=aid)
         db.add(agent)
 
-    agent.last_seen = now          # type: ignore[assignment]
-    agent.hostname = data.hostname  # type: ignore[assignment]
-    agent.os_info = data.os        # type: ignore[assignment]
-    agent.cpu_percent = data.cpu_percent  # type: ignore[assignment]
-    agent.ram_percent = data.ram_percent  # type: ignore[assignment]
+    agent.last_seen    = now              # type: ignore[assignment]
+    agent.hostname     = data.hostname   # type: ignore[assignment]
+    agent.os_info      = data.os         # type: ignore[assignment]
+    agent.cpu_percent  = data.cpu_percent  # type: ignore[assignment]
+    agent.ram_percent  = data.ram_percent  # type: ignore[assignment]
 
     pending_commands = (
         db.query(PendingCommand)
@@ -335,7 +334,7 @@ async def receive_report(
     )
 
     if report:
-        report.content = content_json          # type: ignore[assignment]
+        report.content      = content_json     # type: ignore[assignment]
         report.generated_at = datetime.now()   # type: ignore[assignment]
     else:
         db.add(AgentReport(
@@ -348,7 +347,7 @@ async def receive_report(
     return {"status": "stored"}
 
 
-# ── Dashboard / admin endpoints (require session) ─────────────────────────────
+# ── Dashboard / admin endpoints ───────────────────────────────────────────────
 
 @app.get("/api/v1/dashboard")
 def dashboard_stats(db: Session = Depends(get_db)):
@@ -364,14 +363,14 @@ def dashboard_stats(db: Session = Depends(get_db)):
     return {
         "agents": {
             a.agent_id: {
-                "hostname": a.hostname,
+                "hostname":  a.hostname,
                 "last_seen": a.last_seen.isoformat() if a.last_seen else None,
                 "status": (
                     "ONLINE"
                     if a.last_seen and (datetime.now() - a.last_seen).total_seconds() < 30
                     else "OFFLINE"
                 ),
-                "os": a.os_info,
+                "os":          a.os_info,
                 "cpu_percent": a.cpu_percent,
                 "ram_percent": a.ram_percent,
             }
@@ -380,10 +379,10 @@ def dashboard_stats(db: Session = Depends(get_db)):
         "recent_incidents": [
             {
                 "received_at": line.received_at.isoformat(),
-                "agent_id": line.agent_id,
-                "severity": line.severity,
-                "message": line.message,
-                "type": line.type,
+                "agent_id":    line.agent_id,
+                "severity":    line.severity,
+                "message":     line.message,
+                "type":        line.type,
             }
             for line in incidents
         ],
@@ -400,8 +399,7 @@ async def queue_command(data: CommandSchema, db: Session = Depends(get_db)):
     if len(cmd_str) > 4096:
         raise HTTPException(status_code=413, detail="Command payload too large")
 
-    pending = PendingCommand(agent_id=data.target_agent_id, command=cmd_str)
-    db.add(pending)
+    db.add(PendingCommand(agent_id=data.target_agent_id, command=cmd_str))
     db.commit()
     logger.info("✅ [COMMAND] Queued for %s: %s", data.target_agent_id, cmd_str)
     return {"status": "queued", "command": cmd_str}
@@ -444,9 +442,10 @@ async def login_page():
     return FileResponse(login_path)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Entry points ──────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
+def main() -> None:
+    """Entry point for `basilisk-server` CLI command (defined in pyproject.toml)."""
     print("🔒 Initializing Basilisk C2 Enterprise v7.1.0...")
     init_db()
     cert_mgr = CertManager(cert_dir="certs")
@@ -459,3 +458,7 @@ if __name__ == "__main__":
         ssl_certfile=cert,
         log_level="info",
     )  # nosec
+
+
+if __name__ == "__main__":
+    main()

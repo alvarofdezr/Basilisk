@@ -19,7 +19,7 @@ class ProcessModel(BaseModel):
 
 
 class NetworkConnModel(BaseModel):
-    """Snapshot de una conexión activa para el mapa de red."""
+    """Snapshot of an active connection for the network map."""
     src: str
     dst: str
     process: str
@@ -28,7 +28,7 @@ class NetworkConnModel(BaseModel):
 
 
 class PortRiskModel(BaseModel):
-    """Análisis de riesgo de un puerto abierto."""
+    """Risk assessment for an open port."""
     port: int
     ip_bind: str
     proto: str
@@ -47,7 +47,7 @@ class FirewallModel(BaseModel):
 
 
 class AuditModel(BaseModel):
-    """Informe de cumplimiento del sistema."""
+    """System compliance report."""
     firewall: FirewallModel
     uac: str
     defender: str

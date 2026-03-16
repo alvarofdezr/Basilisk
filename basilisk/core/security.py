@@ -1,26 +1,28 @@
-# basilisk/core/security.py
+"""
+Basilisk Security Utilities
+Argon2id password hashing and verification.
+"""
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-# Configuración por defecto recomendada por OWASP
 ph = PasswordHasher()
 
 
 def hash_password(password: str) -> str:
-    """Genera un hash Argon2 seguro."""
+    """Generate a secure Argon2id hash for the given password."""
     return ph.hash(password)
 
 
 def verify_password(stored_hash: str, password: str) -> bool:
     """
-    Verifica una contraseña contra su hash Argon2.
-    Devuelve True si coincide, False si no.
+    Verify a plaintext password against its Argon2id hash.
+
+    Returns True on match, False on mismatch or malformed hash.
+    Never raises.
     """
     try:
-        # verify() lanza excepción si falla, devuelve True si acierta
         return ph.verify(stored_hash, password)
     except VerifyMismatchError:
         return False
     except Exception:
-        # Captura cualquier otro error (hash mal formado, etc.)
         return False

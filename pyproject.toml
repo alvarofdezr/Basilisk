@@ -16,64 +16,29 @@ authors = [
 ]
 requires-python = ">=3.10"
 
-# Runtime dependencies
 dependencies = [
-    # Web framework & server
     "fastapi==0.122.0",
     "uvicorn[standard]==0.38.0",
     "starlette==0.50.0",
     "python-multipart==0.0.20",
     "itsdangerous==2.2.0",
-
-    # Database
     "sqlalchemy==2.0.44",
-
-    # Data validation
     "pydantic==2.12.4",
-
-    # Security / crypto
     "argon2-cffi==25.1.0",
     "cryptography==46.0.3",
-
-    # HTTP client
     "requests==2.32.5",
-
-    # System / process monitoring
     "psutil==7.1.0",
-
-    # File system monitoring
     "watchdog==6.0.0",
-
-    # Malware detection
     "yara-python==4.5.4",
-
-    # Configuration
     "pyyaml==6.0.3",
     "python-dotenv==1.1.1",
-
-    # Reporting
     "fpdf2==2.8.5",
 ]
 
 [project.optional-dependencies]
-# Windows-only modules — install manually on Windows:
-#   uv pip install basilisk-edr[windows]
+# Windows-only — install with: uv sync --extra windows
 windows = [
     "pywin32==311",
-]
-
-# Development tools
-dev = [
-    "pytest==9.0.1",
-    "pytest-mock==3.15.1",
-    "pytest-cov==6.1.0",
-    "black==25.9.0",
-    "mypy==1.15.0",
-    "bandit>=1.7.0",
-    "safety",
-    "ruff",
-    "types-requests",
-    "types-pyyaml",
 ]
 
 [project.urls]
@@ -82,13 +47,12 @@ Repository = "https://github.com/alvarofdezr/basilisk"
 Issues     = "https://github.com/alvarofdezr/basilisk/issues"
 Security   = "https://github.com/alvarofdezr/basilisk/blob/main/SECURITY.md"
 
-# Entry points — lets you run `basilisk-server` and `basilisk-agent` from the terminal
 [project.scripts]
 basilisk-server = "basilisk.server.server:main"
 basilisk-agent  = "basilisk.agent.engine:main"
 
 # ============================================================
-# uv configuration
+# uv — dev dependency group (single source of truth)
 # ============================================================
 [dependency-groups]
 dev = [
@@ -98,10 +62,10 @@ dev = [
     "black==25.9.0",
     "mypy==1.15.0",
     "bandit>=1.7.0",
-    "safety", 
-    "ruff",
-    "types-requests",
-    "types-pyyaml",
+    "safety>=3.0.0",
+    "ruff==0.11.2",
+    "types-requests==2.32.0.20250328",
+    "types-pyyaml==6.0.12.20250402",
 ]
 
 # ============================================================
@@ -134,7 +98,7 @@ exclude                = ["venv", ".venv", "build", "dist"]
 
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]
-skips        = ["B104"]   # bind to 0.0.0.0 — intentional in server
+skips        = ["B104"]
 
 [tool.ruff]
 line-length    = 127

@@ -156,7 +156,7 @@ class C2Client:
                 json=payload,
                 timeout=3,
             )
-        except Exception:
+        except Exception: #nosec B110
             pass
 
     def upload_report(self, dtype: str, content: Any) -> None:

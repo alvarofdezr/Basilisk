@@ -129,7 +129,7 @@ class ThreatIntel:
                 self._set_cached(file_hash, not_found)
                 return not_found
 
-        except Exception:
+        except Exception: #nosec B110
             pass
 
         return None

@@ -33,7 +33,7 @@ class Logger:
         if sys.platform == "win32":
             try:
                 sys.stdout.reconfigure(encoding='utf-8') #type: ignore
-            except Exception:
+            except Exception: #nosec B110
                 pass
 
         console_handler = logging.StreamHandler(sys.stdout)
